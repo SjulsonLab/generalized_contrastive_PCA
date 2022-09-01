@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pynapple as nap
+from ncPCA import ncPCA
 
 from allensdk.brain_observatory.ecephys.ecephys_project_cache import EcephysProjectCache
 from sklearn import svm
@@ -149,6 +150,35 @@ for aa in np.arange(len(array_of_ba)):
             scores_vns[:,aaa] = cross_val_score(clf_vns,np.dot(spikes_zsc_ns[:,units_idx],Vns[:aaa+1,:].T),ns_labels,cv=5)
         brain_area_dict['scores_x_'+array_of_ba[aa]] = scores_x
         brain_area_dict['scores_vns_'+array_of_ba[aa]] = scores_vns
+        
+#%% making plots of the score prediction of natural images of ncPCA vs regular PCA
+
+figure(figsize=(30, 6), dpi=150)
+array_of_ba2 = ['LGd','VISp','VISrl','VISpm']; #DO THIS AUTOMATICALLY NEXT TIME
+for aa in np.arange(len(array_of_ba2)):
+    acc_pca_ns = brain_area_dict['scores_x_'+array_of_ba2[aa]]
+    acc_ncPCA_ns = brain_area_dict['scores_vns_'+array_of_ba2[aa]]
+    
+    x = np.arange(start=1,stop=acc_pca_ns.shape[1]+1)
+    
+    pca_mu = np.mean(acc_pca_ns,axis=0);
+    pca_err = np.std(acc_pca_ns,axis=0)/np.sqrt(5);
+    
+    ncpca_mu = np.mean(acc_ncPCA_ns,axis=0);
+    ncpca_err = np.std(acc_ncPCA_ns,axis=0)/np.sqrt(5);
+    
+    subplot(1,5,aa+1)
+    errorbar(x,pca_mu,yerr=pca_err,label = 'PCA')
+    errorbar(x,ncpca_mu,yerr=ncpca_err,label='ncPCA')
+    title(array_of_ba2[aa])
+    xlabel('cumulative PCs')
+
+legend(loc = 'lower right')
+subplot(1,5,1)
+ylabel('Accuracy')
+
+
+
 #%% testing prediction over X and over Vns
 
 
