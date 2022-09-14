@@ -12,4 +12,5 @@ dependencies:
     - sklearn
     - allensdk
     - pynapple
+    - contrastive
  
