@@ -5,10 +5,11 @@ dependencies:
   - python=3.9
   - pip
   - pip:
-    - allensdk
     - numpy
     - pandas
-    - pynapple
     - scipy
     - matplotlib
     - sklearn
+    - allensdk
+    - pynapple
+ 
