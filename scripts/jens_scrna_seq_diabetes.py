@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pynapple as nap
 import ncPCA
-
+import contrastive
 
 from sklearn.model_selection import cross_val_score
 from matplotlib.pyplot import *
@@ -98,10 +98,17 @@ N_reconstructed = np.linalg.multi_dot((U[:,:200],Smat[:200,:200],V[:200,:]))
 N1_trimmed = N_reconstructed[index_n1,:]
 N2_trimmed = N_reconstructed[np.logical_not(index_n1),:]
 
+#%% trying to trim the data by using L1 regularized multinomial logistic regression
+from sklearn.linear_model import LogisticRegressionCV
+
+
 #%% running ncPCA
 #N1_trimmed = np.random.randn(10000,3000)
 #N2_trimmed = np.random.randn(10000,3000)
-X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=True)
+X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=False)
+
+cPCs = ncPCA.cPCA(N1_trimmed,N2_trimmed)
+
 
 #%% making plots
 
@@ -158,7 +165,7 @@ for a in np.arange(num[-1]-40,num[-1]+1):
 
 #%%
 #DOING FOR THE FIRST PC ONLY
-ncPCA_gene_space = X[:,1]
+ncPCA_gene_space = X[:,0]
 genes_names = data.columns
 #sorting gene expression
 num = np.arange(len(genes_names_sorted))
@@ -184,11 +191,66 @@ for a in np.arange(num[-1]-40,num[-1]+1):
 
 
 #%%
-beta_cells_PC = V2[2,:].T
+beta_cells_PC = V2[0,:].T
 idx_sorting = np.argsort(beta_cells_PC);
 beta_cells_PC_sorted= beta_cells_PC[idx_sorting]
 genes_names_sorted = genes_names[idx_sorting]
 stem(beta_cells_PC_sorted);xlabel('genes');ylabel('expression norm.');title('Beta_cells_PC')
 text(num[genes_names_sorted=='INS'],beta_cells_PC_sorted[genes_names_sorted=='INS'],'INS',
       rotation='vertical',fontsize=7)
+
+#%% same plot as above but cPC
+selected_cPCs = np.real(cPCs[:,1])
+
+idx_sorting = np.argsort(selected_cPCs);
+selected_cPCs_sorted = selected_cPCs[idx_sorting]
+genes_names_sorted = genes_names[idx_sorting]
+num = np.arange(len(genes_names_sorted))
+
+stem(selected_cPCs_sorted);xlabel('genes');ylabel('expression norm.');title('cPCs')
+text(num[genes_names_sorted=='INS'],selected_cPCs_sorted[genes_names_sorted=='INS'],'INS',
+      rotation='vertical',fontsize=7)
+
+#%% make plots on projections and class
+
+#getting index of each cell type to label with different plot
+#improve for readability later
+idx = (annotation.CellType.values!='Beta') & (annotation.Disease.values=='normal')
+reduced_values_n1 = annotation.CellType.values[idx]
+betalabels = annotation.CellType.values[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
+concat_ann = np.concatenate((reduced_values_n1,betalabels))
+colormap = cm.tab20
+
+
+c = 0
+labels_id = np.zeros(concat_ann.shape)
+str2legend = []
+for name in np.unique(concat_ann):
+    labels_id[concat_ann==name]=c
+    str2legend.append(name)
+    c += 1
+
+# plot the scores on projections from beta cells PC, cPCA and ncPCA
+subplot(1,3,1)
+proj_beta_PC = np.dot(N_reconstructed,V2_hat[(0,1),:].T)
+aux_scat = scatter(proj_beta_PC[:,0],proj_beta_PC[:,1],c=labels_id,cmap=colormap,alpha=0.5)
+handles, labels = aux_scat.legend_elements(prop="colors", alpha=0.6)
+legend(handles,str2legend)
+
+subplot(1,3,2)
+proj_cPCs = np.dot(N_reconstructed,np.real(cPCs[:,(0,1)]))
+scatter(proj_cPCs[:,0],proj_cPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
+
+subplot(1,3,3)
+proj_ncPCs = np.dot(N_reconstructed,X[:,(198,199)])
+scatter(proj_ncPCs[:,0],proj_ncPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
+xlim((-0.5,0.5))
+ylim((-0.5,0.5))
+
+
+
+
+
+
+
 

@@ -6,7 +6,11 @@ Created on Sat May  7 09:57:15 2022
 script to implement ncPCA and run some tests on it
 """
 
-
+#%% should prepare this code as a class with methods and etc.
+# Return an object with data projected on to the ncPCs
+# loadings
+# other stuff
+# put option to normalize the data or not
 #%% defining important functions
 
 #fast reduced row echelon form function
@@ -236,14 +240,18 @@ def ncPCA(N1,N2,Nshuffle=0,skip_normalization=False):
     V1_cat = np.concatenate((V1_hat,V1_hat),axis=1)
     V2_cat = np.concatenate((V2_hat,np.zeros(V2_hat.shape)),axis=1)
     zassmat = np.concatenate((V1_cat,V2_cat),axis=0)
+    #it might be necessary to check the type of array (float vs int)!!
     zassmat_rref,_ = frref(zassmat)
     
     basis_idx = 0
     basis_mat = [];
-    for idx in np.arange(0,np.shape(zassmat_rref)[0]):
-        if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector
+    for idx in np.arange(np.shape(zassmat_rref)[0]):
+        if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector of intersection
             #basis_mat = np.concatenate((basis_mat,zassmat_rref[idx,N_dim:].T),axis=1)
             basis_mat.append(zassmat_rref[idx,N_dim:].T)
+            basis_idx += 1
+        else:
+            basis_mat.append(zassmat_rref[idx,:N_dim].T)
             basis_idx += 1
     
     basis_mat2 = np.array(basis_mat).T
@@ -371,19 +379,23 @@ def ncPCA_orth(N1,N2,Nshuffle=0,skip_normalization=False):
     V1_hat = V1[max_1[0],:];
     V2_hat = V2[max_2[0],:];
     
-    #HAVE TO MAKE SURE THIS IS GETTING SUM AND INTERCEPT
+    #HAVE TO MAKE SURE THIS IS GETTING SUM AND INTERCEPT (JUST GETTING INTERCEPT)
     N_dim = V1.shape[1]
     V1_cat = np.concatenate((V1_hat,V1_hat),axis=1)
     V2_cat = np.concatenate((V2_hat,np.zeros(V2_hat.shape)),axis=1)
     zassmat = np.concatenate((V1_cat,V2_cat),axis=0)
+    #it might be necessary to check the type of array (float vs int)!!
     zassmat_rref,_ = frref(zassmat)
     
     basis_idx = 0
     basis_mat = [];
-    for idx in np.arange(0,np.shape(zassmat_rref)[0]):
-        if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector
+    for idx in np.arange(np.shape(zassmat_rref)[0]):
+        if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector of intersection
             #basis_mat = np.concatenate((basis_mat,zassmat_rref[idx,N_dim:].T),axis=1)
             basis_mat.append(zassmat_rref[idx,N_dim:].T)
+            basis_idx += 1
+        else:
+            basis_mat.append(zassmat_rref[idx,:N_dim].T)
             basis_idx += 1
     
     basis_mat2 = np.array(basis_mat).T
@@ -440,3 +452,19 @@ def ncPCA_orth(N1,N2,Nshuffle=0,skip_normalization=False):
     #write shuffling later
     
     return X,S_total
+
+def cPCA(background,foreground,alpha=1):
+    #code to do cPCA for comparison, this return loadings
+    import numpy as np
+    import numpy.linalg as LA
+    
+    #calculating covariance of the data, it's assumed the data is centered and scaled
+    bg_cov = background.T.dot(background)
+    fg_cov = foreground.T.dot(foreground)
+    
+    sigma = fg_cov - alpha*bg_cov
+    w, v = LA.eig(sigma)
+    eig_idx = np.argsort(w)
+    
+    cPCs = v[:,eig_idx]
+    return cPCs
