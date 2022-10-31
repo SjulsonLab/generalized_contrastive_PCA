@@ -99,14 +99,36 @@ N1_trimmed = N_reconstructed[index_n1,:]
 N2_trimmed = N_reconstructed[np.logical_not(index_n1),:]
 
 #%% trying to trim the data by using L1 regularized multinomial logistic regression
+
+idx = (annotation.CellType.values!='Beta') & (annotation.Disease.values=='normal')
+reduced_values_n1 = annotation.CellType.values[idx]
+betalabels = annotation.CellType.values[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
+concat_ann = np.concatenate((reduced_values_n1,betalabels))
+
+c = 0
+labels_id = np.zeros(concat_ann.shape)
+str2legend = []
+for name in np.unique(concat_ann):
+    labels_id[concat_ann==name]=c
+    str2legend.append(name)
+    c += 1
+
 from sklearn.linear_model import LogisticRegressionCV
 
+l1_log_reg = LogisticRegressionCV(Cs=np.logspace(-4,6,20),penalty='l1',solver='liblinear')
+#fitting
+l1_log_reg.fit(N_full,labels_id)
+
+#picking genes to use
+genes_to_keep = np.argwhere(np.abs(l1_log_reg.coef_.sum(axis=0))>0)
 
 #%% running ncPCA
 #N1_trimmed = np.random.randn(10000,3000)
 #N2_trimmed = np.random.randn(10000,3000)
-X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=False)
+N1_trimmed = stats.zscore(N_full[index_n1,genes_to_keep]).T
+N2_trimmed = stats.zscore(N_full[np.logical_not(index_n1),genes_to_keep]).T
 
+X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=False)
 cPCs = ncPCA.cPCA(N1_trimmed,N2_trimmed)
 
 
@@ -141,14 +163,14 @@ xlabel('features')
 #projecting it back to gene space
 #ncPCA_gene_space = np.dot(X[:,-1].T,V[:,:200].T)
 ncPCA_gene_space = X[:,0]
-genes_overexpressed = np.abs(ncPCA_gene_space)>0.03 #WILL HAVE TO FIND A BETTER WAY TO DO THIS
 genes_names = data.columns;
-num = np.arange(len(genes_overexpressed))
+genes_names_kept = genes_names[genes_to_keep]
+num = np.arange(len(ncPCA_gene_space))
 
 #sorting gene expression
 idx_sorting = np.argsort(ncPCA_gene_space);
 ncPCA_gene_space_sorted = ncPCA_gene_space[idx_sorting]
-genes_names_sorted = genes_names[idx_sorting]
+genes_names_sorted = genes_names_kept[idx_sorting]
 stem(ncPCA_gene_space_sorted);xlabel('genes');ylabel('expression norm.');title('ncPC1')
 text(num[genes_names_sorted=='INS'],ncPCA_gene_space_sorted[genes_names_sorted=='INS'],'INS',
       rotation='vertical',fontsize=7)
@@ -231,18 +253,18 @@ for name in np.unique(concat_ann):
     c += 1
 
 # plot the scores on projections from beta cells PC, cPCA and ncPCA
-subplot(1,3,1)
-proj_beta_PC = np.dot(N_reconstructed,V2_hat[(0,1),:].T)
-aux_scat = scatter(proj_beta_PC[:,0],proj_beta_PC[:,1],c=labels_id,cmap=colormap,alpha=0.5)
-handles, labels = aux_scat.legend_elements(prop="colors", alpha=0.6)
-legend(handles,str2legend)
-
-subplot(1,3,2)
-proj_cPCs = np.dot(N_reconstructed,np.real(cPCs[:,(0,1)]))
+#subplot(1,3,1)
+#proj_beta_PC = np.dot(N_reconstructed,V2_hat[(0,1),:].T)
+#aux_scat = scatter(proj_beta_PC[:,0],proj_beta_PC[:,1],c=labels_id,cmap=colormap,alpha=0.5)
+#handles, labels = aux_scat.legend_elements(prop="colors", alpha=0.6)
+#legend(handles,str2legend)
+N2use = np.squeeze(N2use)
+subplot(1,2,1)
+proj_cPCs = np.dot(N2use,np.real(cPCs[:,(0,1)]))
 scatter(proj_cPCs[:,0],proj_cPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
 
-subplot(1,3,3)
-proj_ncPCs = np.dot(N_reconstructed,X[:,(198,199)])
+subplot(1,2,2)
+proj_ncPCs = np.dot(N2use,X[:,(936,937)])
 scatter(proj_ncPCs[:,0],proj_ncPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
 xlim((-0.5,0.5))
 ylim((-0.5,0.5))
