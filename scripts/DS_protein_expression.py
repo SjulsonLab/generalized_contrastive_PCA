@@ -7,20 +7,27 @@ Script for analyzing dataset of protein expression using ncPCA and comparing to 
 
 #%% importing packages
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import *
 from matplotlib.colors import ListedColormap
 import contrastive
+import seaborn as sns
+
 
 #%% setting up constant variables for the rest of the code
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
-data_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\datasets\\from_cPCA_paper\\"
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
+data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
+
+#%% importing ncPCA
+sys.path.append(repo_dir)
+from ncPCA import ncPCA
 #%% loading data
 
 #going to the repo directory
 os.chdir(repo_dir)
-from ncPCA import ncPCA
+
 
 data = np.genfromtxt(os.path.join(data_dir,'Data_Cortex_Nuclear.csv'),
                      delimiter=',', skip_header=1,usecols=range(1,78),filling_values=0)
@@ -51,17 +58,53 @@ mdl = contrastive.CPCA()
 projected_data = mdl.fit_transform(target, background, plot=True, active_labels=sub_group_labels)
 
 #%% running and plotting ncPCA
-X, S = ncPCA(background, target)
 
-#plotting ncPCA
-target_projected = np.dot(target,X[:,:2])
 sub_group_labels= np.array(sub_group_labels)
 a = np.where(sub_group_labels == 0)
 b = np.where(sub_group_labels == 1)
+
+sns.set_style("ticks")
+sns.set_context("notebook")
+
+#X,S = ncPCA_mdl.ncPCA_orth(background,target)
+#X, S = ncPCA(background, target)
+
+#plotting ncPCA
+#target_projected = np.dot(target,X[:,:2])
+
 figure()
+
+ncPCA_mdl = ncPCA(basis_type='all')
+ncPCA_mdl.fit(background,target)
+target_projected = ncPCA_mdl.N2_scores_
+
+subplot(1,3,1,aspect='equal')
 scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
 scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
 xlabel('ncPC1')
 ylabel('ncPC2')
+title('all basis')
 plt.legend()
-plt.show()
+
+ncPCA_mdl = ncPCA(basis_type='union')
+ncPCA_mdl.fit(background,target)
+target_projected = ncPCA_mdl.N2_scores_
+
+subplot(1,3,2,aspect='equal')
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
+scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+xlabel('ncPC1')
+title('union')
+
+ncPCA_mdl = ncPCA(basis_type='intersect')
+ncPCA_mdl.fit(background,target)
+target_projected = ncPCA_mdl.N2_scores_
+
+subplot(1,3,3,aspect='equal')
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
+scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+xlabel('ncPC1')
+title('intersect')
+
+
+#%% 
