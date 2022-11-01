@@ -45,7 +45,6 @@ N1 = np.divide(stats.zscore(N1),np.linalg.norm(stats.zscore(N1),axis=0))
 N2 = beta_df.values
 N2 = np.divide(stats.zscore(N2),np.linalg.norm(stats.zscore(N2),axis=0))
 
-
 # removing nan from the dataset (likely empty vectors etc, THIS NEEDS TO BE LOOKED UPON)
 #indices_to_zero = (np.sum(np.isnan(N1),axis=0)>0) (np.sum(np.isnan(N2),axis=0)>0)
 N1[np.isnan(N1)]=0
@@ -54,36 +53,36 @@ N2[np.isnan(N2)]=0
 #%% cleaning data to have a smaller subspace to calculate
 
 #SVD (or PCA) on N1 and N2
-N_full = np.concatenate((N1,N2),axis=0)
-index_n1 = np.zeros(N_full.shape[0])
-index_n1[:N1.shape[0]]=1
-index_n1 = index_n1>0
+# N_full = np.concatenate((N1,N2),axis=0)
+# index_n1 = np.zeros(N_full.shape[0])
+# index_n1[:N1.shape[0]]=1
+# index_n1 = index_n1>0
 
 
-U,S,V = np.linalg.svd(N_full,full_matrices=False)
-U1,S1,V1 = np.linalg.svd(N1,full_matrices = False)
-U2,S2,V2 = np.linalg.svd(N2,full_matrices = False)
+# U,S,V = np.linalg.svd(N_full,full_matrices=False)
+# U1,S1,V1 = np.linalg.svd(N1,full_matrices = False)
+# U2,S2,V2 = np.linalg.svd(N2,full_matrices = False)
     
-# discard PCs that cumulatively account for less than 1% of variance, i.e.
-# rank-deficient dimensions
-S1_diagonal = S1
-S2_diagonal = S2
+# # discard PCs that cumulatively account for less than 1% of variance, i.e.
+# # rank-deficient dimensions
+# S1_diagonal = S1
+# S2_diagonal = S2
 
-#cumulative variance
-cumvar_1 = np.divide(np.cumsum(S1_diagonal),np.sum(S1_diagonal))
-cumvar_2 = np.divide(np.cumsum(S2_diagonal),np.sum(S2_diagonal))
+# #cumulative variance
+# cumvar_1 = np.divide(np.cumsum(S1_diagonal),np.sum(S1_diagonal))
+# cumvar_2 = np.divide(np.cumsum(S2_diagonal),np.sum(S2_diagonal))
 
-#picking how many PCs to keep
-cutoff = 0.995
-max_1 = np.where(cumvar_1 < cutoff)
-max_2 = np.where(cumvar_2 < cutoff)
+# #picking how many PCs to keep
+# cutoff = 0.995
+# max_1 = np.where(cumvar_1 < cutoff)
+# max_2 = np.where(cumvar_2 < cutoff)
 
-#picking same number of feature, the problem with this is that some of them will miss some features
-n_pcs = np.min([max_1[0][-1],max_2[0][-1]])
+# #picking same number of feature, the problem with this is that some of them will miss some features
+# n_pcs = np.min([max_1[0][-1],max_2[0][-1]])
 
 #trimming down PCs
-V1_hat = V1[np.arange(n_pcs),:];
-V2_hat = V2[np.arange(n_pcs),:];
+# V1_hat = V1[np.arange(n_pcs),:];
+# V2_hat = V2[np.arange(n_pcs),:];
 
 #testing truncating the data
 #top_genes_index = np.argsort(np.sum(np.abs(V2_hat[:50,:]),axis=0)[-500:];
@@ -93,12 +92,17 @@ V2_hat = V2[np.arange(n_pcs),:];
 #projecting data on PCs to have a smaller space
 #N1_trimmed = np.linalg.multi_dot((N1,V1_hat.T,V1_hat))
 #N2_trimmed = np.linalg.multi_dot((N2,V2_hat.T,V2_hat))
-Smat = np.diag(S)
-N_reconstructed = np.linalg.multi_dot((U[:,:200],Smat[:200,:200],V[:200,:]))
-N1_trimmed = N_reconstructed[index_n1,:]
-N2_trimmed = N_reconstructed[np.logical_not(index_n1),:]
+# Smat = np.diag(S)
+# N_reconstructed = np.linalg.multi_dot((U[:,:200],Smat[:200,:200],V[:200,:]))
+# N1_trimmed = N_reconstructed[index_n1,:]
+# N2_trimmed = N_reconstructed[np.logical_not(index_n1),:]
 
 #%% trying to trim the data by using L1 regularized multinomial logistic regression
+
+N_full = np.concatenate((N1,N2),axis=0)
+index_n1 = np.zeros(N_full.shape[0])
+index_n1[:N1.shape[0]]=1
+index_n1 = index_n1>0
 
 idx = (annotation.CellType.values!='Beta') & (annotation.Disease.values=='normal')
 reduced_values_n1 = annotation.CellType.values[idx]

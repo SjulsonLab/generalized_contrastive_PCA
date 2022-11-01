@@ -174,7 +174,7 @@ def cPCA(background,foreground,alpha=1):
 # old ncPCA code    
 def ncPCA_old(self,N1,N2):
     Nshuffle = self.Nshuffle
-    normalize = self.normalize
+    normalize_flag = self.normalize_flag
     """function [X,S_total] = ncPCA(Ns, Nw, Nshuffle)
     %
     % This function does normalized contrastive PCA (nvPCA) on binned spike trains to
@@ -319,7 +319,7 @@ def ncPCA_old(self,N1,N2):
 #%% starting the main class here
 class ncPCA():
     
-    def __init__(self,Nshuffle=0,normalize = True,basis_type = 'all'):
+    def __init__(self,Nshuffle=0,normalize_flag = True,basis_type = 'all'):
         """ 
         Basis type can be 'all', 'union','intersect'
         
@@ -334,13 +334,29 @@ class ncPCA():
             raise ValueError("Basis type entered is invalid, it can only be: 'all','union','intersect'")
         
         self.Nshuffle = Nshuffle
-        self.normalize = normalize
+        self.normalize_flag = normalize_flag
         self.basis_type = basis_type
         self.cutoff=0.995
         
     #%% write a function to generate data that can only be captured by ncPCA
-    
-    
+    def generate_dataset(self,nsamples=10000,ntargets=100,high_var_rank=2,low_var_rank=2):
+        high_rank_sigma = 10
+        noise_sigma = 1
+        low_rank_sigma = 2
+        import numpy as np
+        
+        W_hv = np.random.randn(high_var_rank,ntargets);
+        W_lv = np.random.randn(low_var_rank,ntargets);
+        
+        N1 = np.dot(np.random.randn(nsamples,high_var_rank),W_hv)*high_rank_sigma #high var activiy
+        + np.random.randn(nsamples,ntargets)*noise_sigma # noise
+        + np.dot(np.random.randn(nsamples,low_var_rank),W_lv)*low_rank_sigma #low var activity
+        
+        N2 = np.dot(np.random.randn(nsamples,high_var_rank),W_hv)*high_rank_sigma*0.5 #increase in high var activiy
+        + np.random.randn(nsamples,ntargets)*noise_sigma # noise
+        + np.dot(np.random.randn(nsamples,low_var_rank),W_lv)*low_rank_sigma*5 #increase in low var activity
+        
+        return N1,N2,W_hv,W_lv
     
     #%% new and orthogonal ncPCA
     def fit(self,N1,N2): #old method that was called ncPCA_orth
@@ -388,7 +404,7 @@ class ncPCA():
     
         #parameters
         Nshuffle = self.Nshuffle
-        normalize = self.normalize
+        normalize_flag = self.normalize_flag
         cutoff = self.cutoff #keeping this much variance with PCA
         basis_type = self.basis_type
         
@@ -396,7 +412,7 @@ class ncPCA():
         if N2.shape[1] != N1.shape[1]:
             raise ValueError("N1 and N2 have different numbers of features")
         
-        if normalize:
+        if normalize_flag:
             N1_temp = np.divide(stats.zscore(N1),np.linalg.norm(stats.zscore(N1),axis=0))
             N2_temp = np.divide(stats.zscore(N2),np.linalg.norm(stats.zscore(N2),axis=0))
             
@@ -462,6 +478,9 @@ class ncPCA():
 
                         
         basis_mat2 = np.array(basis_mat).T
+        
+        if basis_mat2.size==0:
+            raise ValueError("No shared basis found between N1 and N2")
         
         J = LA.orth(basis_mat2) #orthonormal shared basis for Ns and Nw
         k = J.shape[1]
