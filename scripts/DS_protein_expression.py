@@ -19,7 +19,7 @@ import seaborn as sns
 #%% setting up constant variables for the rest of the code
 repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
 data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
-
+rcParams['figure.dpi'] = 500
 #%% importing ncPCA
 sys.path.append(repo_dir)
 from ncPCA import ncPCA
@@ -96,7 +96,7 @@ scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r'
 xlabel('ncPC1')
 title('union')
 
-ncPCA_mdl = ncPCA(basis_type='intersect')
+ncPCA_mdl = ncPCA(Nshuffle=10000,basis_type='intersect')
 ncPCA_mdl.fit(background,target)
 target_projected = ncPCA_mdl.N2_scores_
 
@@ -106,5 +106,19 @@ scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r'
 xlabel('ncPC1')
 title('intersect')
 
+#%% testing the sorting
+test = ncPCA_mdl.ncPCA_values_null_
+# test2 = np.vstack(test).T
+# test3 = np.sort(test2,axis=1)
+color2use = cm.bwr(np.linspace(0,1,num=test.shape[1]))
 
+figure()
+for a in np.arange(test.shape[1]):
+     plot(test[:,a],color=color2use[a,:])
+plot(ncPCA_mdl.ncPCs_values_,color='k',label='real data')
+legend()
+xlabel('ncPCs')
+ylabel('ncPCA values')
+#xlim((-1,10))
+#ylim((0.9,1.1))
 #%% 

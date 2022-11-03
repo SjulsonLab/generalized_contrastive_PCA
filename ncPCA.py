@@ -319,7 +319,7 @@ def ncPCA_old(self,N1,N2):
 #%% starting the main class here
 class ncPCA():
     
-    def __init__(self,Nshuffle=0,normalize_flag = True,basis_type = 'all'):
+    def __init__(self,Nshuffle = 0,normalize_flag = True,basis_type = 'all',alpha_null=0.975):
         """ 
         Basis type can be 'all', 'union','intersect'
         
@@ -336,6 +336,7 @@ class ncPCA():
         self.Nshuffle = Nshuffle
         self.normalize_flag = normalize_flag
         self.basis_type = basis_type
+        self.alpha_null = alpha_null
         self.cutoff=0.995
         
     #%% write a function to generate data that can only be captured by ncPCA
@@ -536,8 +537,12 @@ class ncPCA():
         self.ncPCs_values_ = S_total
         self.N1_scores_ = np.dot(N1,X)
         self.N2_scores_ = np.dot(N2,X)
+        self.N1 = N1
+        self.N2 = N2
         
-        #write shuffling later
+        # shuffling to define a null distribution
+        if Nshuffle>0:
+            self.null_distribution()
         
     def transform(self,N1,N2):
         import numpy as np
@@ -550,3 +555,164 @@ class ncPCA():
         except:
             print('Loadings not defined, you have to first fit the model')
         
+    # def null_distribution(self):
+    #     import numpy as np
+    #     from scipy import linalg as LA
+        
+    #     #getting parameters
+    #     Nshuffle = self.Nshuffle
+    #     basis_type = self.basis_type
+    #     N1_org = self.N1 #original data
+    #     N2_org = self.N2
+        
+    #     S_null = [] #variable to save the null results
+        
+    #     for n in np.arange(Nshuffle):
+            
+    #         N1 = np.random.permutation(N1_org.T).T
+    #         N2 = np.random.permutation(N2_org.T).T
+    #         #SVD (or PCA) on N1 and N2
+    #         _,_,V1_hat = np.linalg.svd(N1,full_matrices = False)
+    #         _,_,V2_hat = np.linalg.svd(N2,full_matrices = False)
+    
+            
+    #         # Zassenhaus algorithm to find shared basis for N1 and N2
+    #         #HAVE TO MAKE SURE THIS IS GETTING SUM AND INTERCEPT (JUST GETTING INTERCEPT)
+    #         N_dim = V1_hat.shape[1]
+    #         V1_cat = np.concatenate((V1_hat,V1_hat),axis=1)
+    #         V2_cat = np.concatenate((V2_hat,np.zeros(V2_hat.shape)),axis=1)
+    #         zassmat = np.concatenate((V1_cat,V2_cat),axis=0)
+    #         #it might be necessary to check the type of array (float vs int)!!
+    #         zassmat_rref,_ = frref(zassmat)
+            
+    #         basis_idx = 0
+    #         basis_mat = [];
+            
+    #         if basis_type == 'all':
+    #                 for idx in np.arange(np.shape(zassmat_rref)[0]):
+    #                     if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector of intersection
+    #                         basis_mat.append(zassmat_rref[idx,N_dim:].T)
+    #                         basis_idx += 1
+    #                     else: #otherwise is a basis function from union
+    #                         basis_mat.append(zassmat_rref[idx,:N_dim].T)
+    #                         basis_idx += 1
+    #         elif basis_type == 'union':
+    #                 for idx in np.arange(np.shape(zassmat_rref)[0]):
+    #                     if np.logical_not(np.all(zassmat_rref[idx,:N_dim] == 0)): #this is a basis vector of union
+    #                         basis_mat.append(zassmat_rref[idx,:N_dim].T)
+    #                         basis_idx += 1
+    #         elif basis_type == 'intersect':
+    #                 for idx in np.arange(np.shape(zassmat_rref)[0]):
+    #                     if np.all(zassmat_rref[idx,:N_dim] == 0): #this is a basis vector of intersection
+    #                         basis_mat.append(zassmat_rref[idx,N_dim:].T)
+    #                         basis_idx += 1
+    
+                            
+    #         basis_mat2 = np.array(basis_mat).T
+            
+    #         if basis_mat2.size==0:
+    #             raise ValueError("No shared basis found between N1 and N2")
+            
+    #         J = LA.orth(basis_mat2) #orthonormal shared basis for Ns and Nw
+    #         k = J.shape[1]
+            
+    #         ## Calculating ncPCA below
+            
+    #         #covariance matrices
+    #         N1N1 = np.dot(N1.T,N1)
+    #         N2N2 = np.dot(N2.T,N2)
+            
+            
+    #         ######### Iteratively take out the ncPCs by deflating J
+    #         n_basis = J.shape[1]
+    #         Jnew = J
+    #         for aa in np.arange(n_basis):
+    #             B = LA.sqrtm(np.linalg.multi_dot((Jnew.T,N2N2+N1N1,Jnew)))
+                
+    #             #JBinv = np.linalg.lstsq(np.linalg.inv(J),np.linalg.inv(B))
+    #             #JBinv,_,_,_ = np.linalg.lstsq(J.T,np.linalg.inv(B))
+    #             #JBinv = np.linalg.solve(J.T,B.T)
+    #             #JBinv = np.dot(J,np.linalg.pinv(B))
+                
+    #             JBinv =  np.linalg.lstsq(Jnew.T, np.linalg.pinv(B))[0]
+                
+    #             # sort according to decreasing eigenvalue
+    #             D,y = np.linalg.eig(np.linalg.multi_dot((JBinv.T,N2N2-N1N1,JBinv)))
+                
+    #             Y = y[:,np.flip(np.argsort(D))]
+                
+    #             X_temp = np.dot(JBinv,Y[:,0]);
+                
+    #             if aa == 0:
+    #                 X = X_temp/np.linalg.norm(X_temp,axis=0)
+    #             else:
+    #                 temp_norm_ldgs = X_temp/np.linalg.norm(X_temp,axis=0)
+    #                 X = np.column_stack((X,temp_norm_ldgs))
+                
+    #             #deflating J
+    #             gamma = np.dot(np.linalg.pinv(B),Y[:,0])
+    #             gamma = gamma/np.linalg.norm(gamma) #normalizing by the norm
+    #             gamma_outer = np.outer(gamma,gamma.T)
+    #             J_reduced = Jnew - np.dot(Jnew,gamma_outer)
+    #             Jnew = LA.orth(J_reduced)
+    #             #Jnew = J_reduced
+    #         ##########
+            
+    #         # getting top and bottom eigenvalues
+    #         Stop = np.linalg.multi_dot((X.T,N2N2-N1N1,X))
+    #         Sbot = np.linalg.multi_dot((X.T,N2N2+N1N1,X))
+    #         S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
+    #         S_null.append(S_total)
+        
+    #     S_null = np.vstack(S_null).T
+    #     S_null_sorted = np.sort(S_null,axis=1)
+    #     self.ncPCA_values_null_ = S_null_sorted
+        
+        
+    def null_distribution(self):
+        import numpy as np
+           
+        #getting parameters
+        Nshuffle = self.Nshuffle
+        X = self.loadings_
+        N1_org = self.N1 #original data
+        N2_org = self.N2
+        alpha_null = self.alpha_null
+    
+        S_null = [] #variable to save the null results
+    
+        for n in np.arange(Nshuffle):
+    
+            N1 = np.random.permutation(N1_org.T).T
+            N2 = np.random.permutation(N2_org.T).T
+
+            #covariance matrices
+            N1N1 = np.dot(N1.T,N1)
+            N2N2 = np.dot(N2.T,N2)
+
+            # getting top and bottom eigenvalues
+            Stop = np.linalg.multi_dot((X.T,N2N2-N1N1,X))
+            Sbot = np.linalg.multi_dot((X.T,N2N2+N1N1,X))
+            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
+            S_null.append(S_total)
+            
+        S_null = np.vstack(S_null).T
+        S_null_sorted = np.sort(S_null,axis=1)
+        
+        #getting upper and bottom CI
+        bot_CI = S_null_sorted[:,int(Nshuffle*(1-alpha_null))]
+        top_CI = S_null_sorted[:,int(Nshuffle*alpha_null)]
+        
+        
+        #finding significant top and bot ncPCs
+        top_ncPCs = self.ncPCs_values_ > top_CI
+        bot_ncPCs = self.ncPCs_values_ < bot_CI
+        
+        
+        self.ncPCA_values_null_ = S_null_sorted
+        
+        self.top_ncPCs_num_ = np.sum(top_ncPCs)
+        self.bot_ncPCs_num_ = np.sum(bot_ncPCs)
+        
+        self.top_ncPCs_idx = np.arange(self.top_ncPCs_num_)
+        self.bot_ncPCs_idx = np.arange(start = X.shape[1]-self.bot_ncPCs_num_,stop = X.shape[1]+1)
