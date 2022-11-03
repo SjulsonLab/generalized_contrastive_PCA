@@ -12,7 +12,8 @@ import shutil
 import numpy as np
 import pandas as pd
 import pynapple as nap
-import ncPCA
+from ncPCA import ncPCA
+from ncPCA import cPCA
 import contrastive
 
 from sklearn.model_selection import cross_val_score
@@ -132,9 +133,13 @@ genes_to_keep = np.argwhere(np.abs(l1_log_reg.coef_.sum(axis=0))>0)
 N1_trimmed = stats.zscore(N_full[index_n1,genes_to_keep]).T
 N2_trimmed = stats.zscore(N_full[np.logical_not(index_n1),genes_to_keep]).T
 
-X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=False)
-cPCs = ncPCA.cPCA(N1_trimmed,N2_trimmed)
+ncPCA_mdl = ncPCA(basis_type='intersect')
+ncPCA_mdl.fit(N1_trimmed,N2_trimmed)
 
+#X,S_total = ncPCA.ncPCA_orth(N1_trimmed,N2_trimmed,skip_normalization=False)
+
+cPCs = cPCA(N1_trimmed,N2_trimmed)
+cPCs_projected = np.dot(np.vstack((N1_trimmed,N2_trimmed)),cPCs)
 
 #%% making plots
 
@@ -166,7 +171,7 @@ xlabel('features')
 #DOING FOR THE FIRST PC ONLY
 #projecting it back to gene space
 #ncPCA_gene_space = np.dot(X[:,-1].T,V[:,:200].T)
-ncPCA_gene_space = X[:,0]
+ncPCA_gene_space = ncPCA_mdl.loadings_[:,6]
 genes_names = data.columns;
 genes_names_kept = genes_names[genes_to_keep]
 num = np.arange(len(ncPCA_gene_space))
@@ -175,8 +180,10 @@ num = np.arange(len(ncPCA_gene_space))
 idx_sorting = np.argsort(ncPCA_gene_space);
 ncPCA_gene_space_sorted = ncPCA_gene_space[idx_sorting]
 genes_names_sorted = genes_names_kept[idx_sorting]
+indx_INS = np.argwhere(genes_names_sorted=='INS')
+
 stem(ncPCA_gene_space_sorted);xlabel('genes');ylabel('expression norm.');title('ncPC1')
-text(num[genes_names_sorted=='INS'],ncPCA_gene_space_sorted[genes_names_sorted=='INS'],'INS',
+text(num[indx_INS[0,0]],ncPCA_gene_space_sorted[indx_INS[0,0]],'INS',
       rotation='vertical',fontsize=7)
 #%%
 figure()
@@ -262,21 +269,41 @@ for name in np.unique(concat_ann):
 #aux_scat = scatter(proj_beta_PC[:,0],proj_beta_PC[:,1],c=labels_id,cmap=colormap,alpha=0.5)
 #handles, labels = aux_scat.legend_elements(prop="colors", alpha=0.6)
 #legend(handles,str2legend)
-N2use = np.squeeze(N2use)
+#N2use = np.squeeze(N2use)
 subplot(1,2,1)
-proj_cPCs = np.dot(N2use,np.real(cPCs[:,(0,1)]))
-scatter(proj_cPCs[:,0],proj_cPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
+#proj_cPCs = np.dot(N2use,np.real(cPCs[:,(0,1)]))
+scatter(cPCs_projected[:,-1],cPCs_projected[:,-2],c=labels_id,cmap=colormap,alpha=0.5)
+legend()
+title('cPCA')
 
 subplot(1,2,2)
-proj_ncPCs = np.dot(N2use,X[:,(936,937)])
-scatter(proj_ncPCs[:,0],proj_ncPCs[:,1],c=labels_id,cmap=colormap,alpha=0.5)
-xlim((-0.5,0.5))
-ylim((-0.5,0.5))
+proj_ncPCs = np.vstack((ncPCA_mdl.N1_scores_,ncPCA_mdl.N2_scores_))
+#proj_ncPCs = np.dot(N2use,X[:,(936,937)])
+scatter(proj_ncPCs[:,-1],proj_ncPCs[:,-2],c=labels_id,cmap=colormap,alpha=0.5)
+#xlim((-0.5,0.5))
+#ylim((-0.5,0.5))
+title('ncPCs Last_dimensions')
 
 
 
+#%% make plot of variance in each dimension for each cell type
 
+data2plot = []
+for name in np.unique(concat_ann):
+    idx2use = concat_ann == name
+    #data2plot.append(np.var(proj_ncPCs[idx2use,:],axis=0)/np.sum(np.var(proj_ncPCs[idx2use,:],axis=0)))
+    data2plot.append(np.var(cPCs_projected[idx2use,:],axis=0))
+    print([str(np.sum(idx2use)) + name])
 
+data2plot = np.array(data2plot).T
 
-
+figure()
+for a in np.arange(data2plot.shape[1]):
+    subplot(13,1,a+1)
+    plot(data2plot[:,a],color=colormap(a),label=np.unique(concat_ann)[a])
+    legend(bbox_to_anchor=(1.04, 1))
+    if a == 0:
+        title('Beta vs Rest')
+        ylabel('Var')
+xlabel('cPCA')
 
