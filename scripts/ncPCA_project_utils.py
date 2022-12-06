@@ -8,17 +8,17 @@ This file will keep all the functions we use in the
 """
 
 
-def cumul_accuracy_projected(Xtrain,Ytrain,Xtest,Ytest,loadings):
-    """ X is the predictor, Y is what to be predicted (labels, etc) and loadings is 
-    the matrix with loadings to project X into, where rows are the loadings and 
-    columns are the dimensions we want to project on.
-    
-    """
+#def cumul_accuracy_projected(Xtrain,Ytrain,Xtest,Ytest,loadings):
+#    """ X is the predictor, Y is what to be predicted (labels, etc) and loadings is 
+#    the matrix with loadings to project X into, where rows are the loadings and 
+#    columns are the dimensions we want to project on.
+#    
+#    """
     
     #TO DO: add backward and forward like I did, so you save time in the for loop,
     #the less for loops the better/faster!!!
     
-    for dim in np.arange(loadings.shape[1]):
+#    for dim in np.arange(loadings.shape[1]):
         # project the data
         
         #train SVM in the projected train data
@@ -26,4 +26,4 @@ def cumul_accuracy_projected(Xtrain,Ytrain,Xtest,Ytest,loadings):
         
         #get the score
         
-    return scores_forward,scores_backward
+#    return scores_forward,scores_backward

@@ -233,15 +233,15 @@ for session_id in selected_sessions.index.values:
                 temp_fw_sg = []
                 temp_bw_ns = []
                 temp_bw_sg = []
-                for aaa in np.arange(X_fw_ns.shape[1],step=stepSize):
+                for aaa in np.arange(int(X_fw_ns.shape[1]/stepSize)):
                     for Xstr in X_:
                         if str(Xstr) == 'X_fw_ns':
                             X = X_[Xstr]
                             #projecting sets into the proper dimensions
-                            ncPCA_fw_ns_train = np.dot(train_ns,X[:,:aaa+1])
-                            ncPCA_fw_sg_train = np.dot(train_sg,X[:,:aaa+1])
-                            ncPCA_fw_ns_test  = np.dot(test_ns,X[:,:aaa+1])
-                            ncPCA_fw_sg_test  = np.dot(test_sg,X[:,:aaa+1])
+                            ncPCA_fw_ns_train = np.dot(train_ns,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_fw_sg_train = np.dot(train_sg,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_fw_ns_test  = np.dot(test_ns,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_fw_sg_test  = np.dot(test_sg,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
                             
                             #fitting models in training set - both NS and SG
                             clf_ns = svm.SVC().fit(ncPCA_fw_ns_train,labels_ns_train)
@@ -255,10 +255,10 @@ for session_id in selected_sessions.index.values:
                         elif str(Xstr) == 'X_bw_ns':
                             X = X_[Xstr]
                             #projecting sets into the proper dimensions
-                            ncPCA_bw_ns_train = np.dot(train_ns,X[:,:aaa+1])
-                            ncPCA_bw_sg_train = np.dot(train_sg,X[:,:aaa+1])
-                            ncPCA_bw_ns_test  = np.dot(test_ns,X[:,:aaa+1])
-                            ncPCA_bw_sg_test  = np.dot(test_sg,X[:,:aaa+1])
+                            ncPCA_bw_ns_train = np.dot(train_ns,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_bw_sg_train = np.dot(train_sg,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_bw_ns_test  = np.dot(test_ns,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                            ncPCA_bw_sg_test  = np.dot(test_sg,X[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
                             
                             #fitting models in training set - both NS and SG
                             clf_ns = svm.SVC().fit(ncPCA_bw_ns_train,labels_ns_train)
@@ -289,17 +289,18 @@ for session_id in selected_sessions.index.values:
                 #for alpha in alpha_values:
                 alpha = 1   
                 cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
+                cPCsrev = np.flip(cPCs, axis=1)
                 
                 temp_fw_ns = []
                 temp_fw_sg = []
                 temp_bw_ns = []
                 temp_bw_sg = []
-                for aaa in np.arange(cPCs.shape[1],step=stepSize):
+                for aaa in np.arange(int(cPCs.shape[1]/stepSize)):
                     #projection data sets into the proper cPCs
-                    cPCA_fw_ns_train = np.dot(train_ns,cPCs[:,:aaa+1])
-                    cPCA_fw_sg_train = np.dot(train_sg,cPCs[:,:aaa+1])
-                    cPCA_fw_ns_test  = np.dot(test_ns,cPCs[:,:aaa+1])
-                    cPCA_fw_sg_test  = np.dot(test_sg,cPCs[:,:aaa+1])
+                    cPCA_fw_ns_train = np.dot(train_ns,cPCs[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_fw_sg_train = np.dot(train_sg,cPCs[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_fw_ns_test  = np.dot(test_ns,cPCs[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_fw_sg_test  = np.dot(test_sg,cPCs[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
                     
                     #fitting models in training set - both NS and SG
                     clf_ns = svm.SVC().fit(cPCA_fw_ns_train,labels_ns_train)
@@ -310,10 +311,10 @@ for session_id in selected_sessions.index.values:
                     temp_fw_sg.append(clf_sg.score(cPCA_fw_sg_test,labels_sg_test))
                     
                     #BACKWARDS CPCA dimensions
-                    cPCA_bw_ns_train = np.dot(train_ns,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_sg_train = np.dot(train_sg,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_ns_test  = np.dot(test_ns,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_sg_test  = np.dot(test_sg,cPCs[:,-1*(aaa+1):])
+                    cPCA_bw_ns_train = np.dot(train_ns,cPCsrev[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_bw_sg_train = np.dot(train_sg,cPCsrev[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_bw_ns_test  = np.dot(test_ns,cPCsrev[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
+                    cPCA_bw_sg_test  = np.dot(test_sg,cPCsrev[:,(aaa*stepSize)+1:(aaa+1)*stepSize+1])
                     
                     #fitting models in training set
                     clf_ns = svm.SVC().fit(cPCA_bw_ns_train,labels_ns_train)
@@ -341,13 +342,13 @@ for session_id in selected_sessions.index.values:
                 
                 temp_ns = []
                 temp_sg = []
-                for aaa in np.arange(Vns.shape[1],step=stepSize):
+                for aaa in np.arange(int(Vns.shape[1]/stepSize)):
                     
                     #projecting data into PCs
-                    PCA_ns_train = np.dot(train_ns,Vns[:aaa+1,:].T)
-                    PCA_ns_test = np.dot(test_ns,Vns[:aaa+1,:].T)
-                    PCA_sg_train = np.dot(train_sg,Vsg[:aaa+1,:].T)
-                    PCA_sg_test = np.dot(test_sg,Vsg[:aaa+1,:].T)
+                    PCA_ns_train = np.dot(train_ns,Vns[(aaa*stepSize)+1:(aaa+1)*stepSize+1,:].T)
+                    PCA_ns_test = np.dot(test_ns,Vns[(aaa*stepSize)+1:(aaa+1)*stepSize+1,:].T)
+                    PCA_sg_train = np.dot(train_sg,Vsg[(aaa*stepSize)+1:(aaa+1)*stepSize+1,:].T)
+                    PCA_sg_test = np.dot(test_sg,Vsg[(aaa*stepSize)+1:(aaa+1)*stepSize+1,:].T)
                     
                     #fitting models on training set
                     clf_ns = svm.SVC().fit(PCA_ns_train,labels_ns_train)
@@ -385,14 +386,14 @@ for session_id in selected_sessions.index.values:
     #file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
 
     # saving the brain_area_dict file
-    with open('/mnt/SSD4TB/ncPCA_files/test_AIBO.pickle', 'wb') as handle:
+    with open('/mnt/SSD4TB/ncPCA_files/test_AIBO_window.pickle', 'wb') as handle:
          pickle.dump(brain_area_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # TODO: add plotting code
 
 #%% reading file
-with open('/mnt/SSD4TB/ncPCA_files/test_AIBO.pickle', 'rb') as handle:
+with open('/mnt/SSD4TB/ncPCA_files/test_AIBO_window.pickle', 'rb') as handle:
      x = pickle.load(handle)
 
 
@@ -412,7 +413,7 @@ n = len(array_of_ba2)
 c = 0
 figure(figsize=(25,5))
 for ba_name in array_of_ba2:
-    c +=1
+    c += 1
     subplot(1,n,c)
             
     n1 = np.shape(brain_area_dict['scores_cPCA_fw_ns_' + ba_name][0])[0]
@@ -445,7 +446,7 @@ for ba_name in array_of_ba2:
     #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
     #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
 
-suptitle('Cumulative components prediction')
+suptitle('Windowed components prediction')
 #%% performance curve PCA vs bw cPCA and ncPCA ns
 #this is temporary
 array_of_ba2 = array_of_ba[[1,2,3,5]]
