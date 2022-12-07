@@ -26,15 +26,15 @@ def cumul_accuracy_projected(Xtrain,Ytrain,Xtest,Ytest,loadings, analysis='fw'):
    bw = []
 
    for dim in np.arange(loadings.shape[1],step=stepSize):
-        fw_train = np.dot(Xtrain,loadings[:,:dim])
-        fw_test = np.dot(Xtest,loadings[:,:dim])
+        fw_train = np.dot(Xtrain,loadings[:,:dim+1])
+        fw_test = np.dot(Xtest,loadings[:,:dim+1])
         clf_fw = svm.SVC().fit(fw_train, Ytrain) # fitting
         clf_fw_score = clf_fw.score(fw_test,Ytest) # predicton
         fw.append(clf_fw_score)
 
         if loadings_flip:
-            bw_train= np.dot(Xtrain,loadings_flip[:,:dim])
-            bw_test= np.dot(Xtest,loadings_flip[:,:dim])
+            bw_train= np.dot(Xtrain,loadings_flip[:,:dim+1])
+            bw_test= np.dot(Xtest,loadings_flip[:,:dim+1])
             clf_fw = svm.SVC().fit(bw_train, Ytrain) # fitting
             clf_fw_score = clf_fw.score(bw_test, Ytest) # prediction
             bw.append(clf_fw_score)
