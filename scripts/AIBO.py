@@ -38,7 +38,7 @@ from numpy import linalg as LA
 #%% parameters
 min_n_cell = 50 #min number of cells in the brain area to be used
 kcv = KFold() #cross-validation method
-stepSize = 5 #number of PCs to jump in the loop, too big may overlap the results and too low may make the code run very slow
+
 #%% import custom modules
 repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
 sys.path.append(repo_dir)
@@ -223,55 +223,12 @@ for session_id in selected_sessions.index.values:
                 # fitting ncPCA to train set
                 ncPCA_mdl = ncPCA(basis_type='intersect',Nshuffle=0)
                 ncPCA_mdl.fit(train_sg,train_ns)
-                
-                X_fw_ns = ncPCA_mdl.loadings_
-                
-                X_bw_ns = np.flip(X_fw_ns, axis=1)
-                X_ = {'X_fw_ns':X_fw_ns, 'X_bw_ns':X_bw_ns}
-                
-                temp_fw_ns = []
-                temp_fw_sg = []
-                temp_bw_ns = []
-                temp_bw_sg = []
-                for aaa in np.arange(X_fw_ns.shape[1],step=stepSize):
-                    for Xstr in X_:
-                        if str(Xstr) == 'X_fw_ns':
-                            X = X_[Xstr]
-                            #projecting sets into the proper dimensions
-                            ncPCA_fw_ns_train = np.dot(train_ns,X[:,:aaa+1])
-                            ncPCA_fw_sg_train = np.dot(train_sg,X[:,:aaa+1])
-                            ncPCA_fw_ns_test  = np.dot(test_ns,X[:,:aaa+1])
-                            ncPCA_fw_sg_test  = np.dot(test_sg,X[:,:aaa+1])
-                            
-                            #fitting models in training set - both NS and SG
-                            clf_ns = svm.SVC().fit(ncPCA_fw_ns_train,labels_ns_train)
-                            #TO DO: add a logistic regression for SG? we can't use accuracy, it has to be difference
-                            clf_sg = svm.SVC().fit(ncPCA_fw_sg_train,labels_sg_train)
-                            
-                            #saving cross validated scores
-                            temp_fw_ns.append(clf_ns.score(ncPCA_fw_ns_test,labels_ns_test))
-                            temp_fw_sg.append(clf_sg.score(ncPCA_fw_sg_test,labels_sg_test))
-                            
-                        elif str(Xstr) == 'X_bw_ns':
-                            X = X_[Xstr]
-                            #projecting sets into the proper dimensions
-                            ncPCA_bw_ns_train = np.dot(train_ns,X[:,:aaa+1])
-                            ncPCA_bw_sg_train = np.dot(train_sg,X[:,:aaa+1])
-                            ncPCA_bw_ns_test  = np.dot(test_ns,X[:,:aaa+1])
-                            ncPCA_bw_sg_test  = np.dot(test_sg,X[:,:aaa+1])
-                            
-                            #fitting models in training set - both NS and SG
-                            clf_ns = svm.SVC().fit(ncPCA_bw_ns_train,labels_ns_train)
-                            clf_sg = svm.SVC().fit(ncPCA_bw_sg_train,labels_sg_train)
-                            
-                            #saving cross validated scores
-                            temp_bw_ns.append(clf_ns.score(ncPCA_bw_ns_test,labels_ns_test))
-                            temp_bw_sg.append(clf_sg.score(ncPCA_bw_sg_test,labels_sg_test))
-                
-                temp_fw_ns = np.hstack(temp_fw_ns)
-                temp_bw_ns = np.hstack(temp_bw_ns)
-                temp_fw_sg = np.hstack(temp_fw_sg)
-                temp_bw_sg = np.hstack(temp_bw_sg)
+                loadings_ncpca = ncPCA_mdl.loadings_
+                temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
+                                             loadings_ncpca, analysis='both')
+
+                temp_fw_sg, temp_bw_sg =  utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
+                                                 loadings_ncpca, analysis='both')
                 
                 scores_ncPCA_fw_ns.append(temp_fw_ns)
                 scores_ncPCA_bw_ns.append(temp_bw_ns)
@@ -280,7 +237,7 @@ for session_id in selected_sessions.index.values:
                 """ This block will calculate for cPCA """
                 
                 #first getting alphas optimized (?) for the dataset <- this needs to be checked if it's true
-                n_components = X_fw_ns.shape[1]
+                n_components = loadings_ncpca.shape[1]
                 #mdl = CPCA(n_components)
                 #_, alpha_values = mdl.fit_transform(train_ns,train_sg, return_alphas= True)
                 #alpha2save.append(alpha_values)
@@ -289,44 +246,14 @@ for session_id in selected_sessions.index.values:
                 #for alpha in alpha_values:
                 alpha = 1   
                 cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
-                
-                temp_fw_ns = []
-                temp_fw_sg = []
-                temp_bw_ns = []
-                temp_bw_sg = []
-                for aaa in np.arange(cPCs.shape[1],step=stepSize):
-                    #projection data sets into the proper cPCs
-                    cPCA_fw_ns_train = np.dot(train_ns,cPCs[:,:aaa+1])
-                    cPCA_fw_sg_train = np.dot(train_sg,cPCs[:,:aaa+1])
-                    cPCA_fw_ns_test  = np.dot(test_ns,cPCs[:,:aaa+1])
-                    cPCA_fw_sg_test  = np.dot(test_sg,cPCs[:,:aaa+1])
-                    
-                    #fitting models in training set - both NS and SG
-                    clf_ns = svm.SVC().fit(cPCA_fw_ns_train,labels_ns_train)
-                    clf_sg = svm.SVC().fit(cPCA_fw_sg_train,labels_sg_train)
-                    
-                    #saving cross validated scores
-                    temp_fw_ns.append(clf_ns.score(cPCA_fw_ns_test,labels_ns_test))
-                    temp_fw_sg.append(clf_sg.score(cPCA_fw_sg_test,labels_sg_test))
-                    
-                    #BACKWARDS CPCA dimensions
-                    cPCA_bw_ns_train = np.dot(train_ns,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_sg_train = np.dot(train_sg,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_ns_test  = np.dot(test_ns,cPCs[:,-1*(aaa+1):])
-                    cPCA_bw_sg_test  = np.dot(test_sg,cPCs[:,-1*(aaa+1):])
-                    
-                    #fitting models in training set
-                    clf_ns = svm.SVC().fit(cPCA_bw_ns_train,labels_ns_train)
-                    clf_sg = svm.SVC().fit(cPCA_bw_sg_train,labels_sg_train)
-                    
-                    #saving cross_validated scores
-                    temp_bw_ns.append(clf_ns.score(cPCA_bw_ns_test,labels_ns_test))
-                    temp_bw_sg.append(clf_sg.score(cPCA_bw_sg_test,labels_sg_test))
-                
-                temp_fw_ns = np.hstack(temp_fw_ns)
-                temp_bw_ns = np.hstack(temp_bw_ns)
-                temp_fw_sg = np.hstack(temp_fw_sg)
-                temp_bw_sg = np.hstack(temp_bw_sg)
+
+                temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                                                                        labels_ns_test,
+                                                                        cPCs, analysis='both')
+
+                temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                                                                        labels_sg_test,
+                                                                        cPCs, analysis='both')
                 
                 scores_cPCA_fw_ns.append(temp_fw_ns)
                 scores_cPCA_bw_ns.append(temp_bw_ns)
@@ -338,29 +265,17 @@ for session_id in selected_sessions.index.values:
                 #the PCs for prediction also need to be cross validated
                 _,_,Vns = np.linalg.svd(train_ns,full_matrices=False)
                 _,_,Vsg = np.linalg.svd(train_sg,full_matrices=False)
-                
-                temp_ns = []
-                temp_sg = []
-                for aaa in np.arange(Vns.shape[1],step=stepSize):
-                    
-                    #projecting data into PCs
-                    PCA_ns_train = np.dot(train_ns,Vns[:aaa+1,:].T)
-                    PCA_ns_test = np.dot(test_ns,Vns[:aaa+1,:].T)
-                    PCA_sg_train = np.dot(train_sg,Vsg[:aaa+1,:].T)
-                    PCA_sg_test = np.dot(test_sg,Vsg[:aaa+1,:].T)
-                    
-                    #fitting models on training set
-                    clf_ns = svm.SVC().fit(PCA_ns_train,labels_ns_train)
-                    clf_sg = svm.SVC().fit(PCA_sg_train,labels_sg_train)
-                    
-                    #saving cross_validated scores
-                    temp_ns.append(clf_ns.score(PCA_ns_test,labels_ns_test))
-                    temp_sg.append(clf_sg.score(PCA_sg_test,labels_sg_test))
-                temp_ns = np.hstack(temp_ns)
-                temp_sg = np.hstack(temp_sg)
+
+
+                temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                                                                        labels_ns_test, Vns.T)
+                temp_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                                                            labels_sg_test, Vsg.T)
+
                 scores_PCA_ns.append(temp_ns)
                 scores_PCA_sg.append(temp_sg)
-            #saving ncPCA        
+
+            #saving ncPCA
             
             brain_area_dict['scores_ncPCA_fw_ns_'+ba_name].append(scores_ncPCA_fw_ns)
             brain_area_dict['scores_ncPCA_fw_sg_'+ba_name].append(scores_ncPCA_fw_sg)
