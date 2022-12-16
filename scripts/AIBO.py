@@ -44,7 +44,7 @@ repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #reposi
 sys.path.append(repo_dir)
 from ncPCA import ncPCA
 from ncPCA import cPCA
-import ncPCA_project_utils as utils #this is going to be 
+import ncPCA_project_utils as utils #this is going to be our package of reusable functions
 #%% preparing data to be loaded
 
 data_directory = '/mnt/probox/allen_institute_data/ecephys/' # must be a valid directory in your filesystem
@@ -224,10 +224,10 @@ for session_id in selected_sessions.index.values:
                 ncPCA_mdl = ncPCA(basis_type='intersect',Nshuffle=0)
                 ncPCA_mdl.fit(train_sg,train_ns)
                 loadings_ncpca = ncPCA_mdl.loadings_
-                temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
+                _,temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
                                              loadings_ncpca, analysis='both')
 
-                temp_fw_sg, temp_bw_sg =  utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
+                ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
                                                  loadings_ncpca, analysis='both')
                 
                 scores_ncPCA_fw_ns.append(temp_fw_ns)
@@ -247,11 +247,11 @@ for session_id in selected_sessions.index.values:
                 alpha = 1   
                 cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
 
-                temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                _,temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
                                                                         labels_ns_test,
                                                                         cPCs, analysis='both')
 
-                temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                cPCs_num,temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
                                                                         labels_sg_test,
                                                                         cPCs, analysis='both')
                 
@@ -267,9 +267,9 @@ for session_id in selected_sessions.index.values:
                 _,_,Vsg = np.linalg.svd(train_sg,full_matrices=False)
 
 
-                temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                PCns_num,temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
                                                                         labels_ns_test, Vns.T)
-                temp_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                PCsg_num,temp_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
                                                             labels_sg_test, Vsg.T)
 
                 scores_PCA_ns.append(temp_ns)
@@ -321,8 +321,10 @@ rcParams['font.size'] = 12
 
 sns.set_style("ticks")
 sns.set_context("talk")
+style.use('dark_background')
 #this is temporary
-array_of_ba2 = array_of_ba[[1,2,3,5]]
+#array_of_ba2 = array_of_ba[[1,2,3,5]]
+array_of_ba2 = ('LGd','VISp','VISrl','VISpm')
 n = len(array_of_ba2)
 c = 0
 figure(figsize=(25,5))
@@ -407,7 +409,8 @@ for ba_name in array_of_ba2:
 sns.set_style("ticks")
 sns.set_context("talk")
 #this is temporary
-array_of_ba2 = array_of_ba[[1,2,3,5]]
+#array_of_ba2 = array_of_ba[[1,2,3,5]]
+array_of_ba2 = ('VISp','VISrl','VISal','VISpm')
 n = len(array_of_ba2)
 c = 0
 figure(figsize=(25,5))
@@ -445,20 +448,77 @@ for ba_name in array_of_ba2:
     #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
     #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
 
-#%% plotting
-#dir_list = os.listdir(r"/home/pranjal/Documents/pkl_sessions")
-#session_id = []
-# for i in dir_list:
-#     try:
-#         x = list(i)[0:9]
-#         c = ''.join(map(str, x))
-#         session_id.append((int(c)))
-#
-#     except:
-#         continue
-#
-# session_id = session_id
-#
-# units_file = r"/home/pranjal/Documents/pkl_sessions/array_units"
-# with open(file, 'rb') as array_units:
-#     array_units = pickle.load(array_units)
+#%% plotting just ncPCA vs PC
+
+sns.set_style("ticks")
+sns.set_context("talk")
+style.use('dark_background')
+#this is temporary
+#array_of_ba2 = array_of_ba[[1,2,3,5]]
+array_of_ba2 = ('VISp','VISrl','VISal','VISpm')
+n = len(array_of_ba2)
+c = 0
+figure(figsize=(25,5))
+for ba_name in array_of_ba2:
+    c +=1
+    subplot(1,n,c)
+    
+    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])[0]
+    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])
+    pc = np.tile(np.arange(temp.size/n1),n1);
+    method = np.tile('ncPCA',pc.size)
+    
+    df_ncPCA = pd.DataFrame({'PCnum':pc,'accuracy':temp,'Method':method})
+    
+    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
+    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
+    pc = np.tile(np.arange(temp.size/n1),n1);
+    method = np.tile('PCA',pc.size)
+    
+    df_PCA = pd.DataFrame({'PCnum':pc,'accuracy':temp,'Method':method})
+    
+    df = pd.concat([df_PCA,df_ncPCA],ignore_index=True)
+    if c == 1:
+        sns.lineplot(data=df,x='PCnum',y='accuracy',hue='Method',legend=True)
+    else:
+        sns.lineplot(data=df,x='PCnum',y='accuracy',hue='Method',legend = False)
+    title(ba_name)
+    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
+    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
+
+suptitle('Cumulative components prediction')
+#%% performance curve PCA vs bw cPCA and ncPCA ns
+#this is temporary
+array_of_ba2 = array_of_ba[[1,2,3,5]]
+n = len(array_of_ba2)
+c = 0
+figure(figsize=(25,5))
+for ba_name in array_of_ba2:
+    c +=1
+    subplot(1,n,c)
+    
+    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])[0]
+    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])
+    pc = np.tile(np.arange(temp.size/n1),n1);
+    method = np.tile('ncPCA',pc.size)
+    
+    df_ncPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
+    
+    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
+    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
+    pc = np.tile(np.arange(temp.size/n1),n1);
+    method = np.tile('PCA',pc.size)
+    
+    df_PCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
+    
+    df = pd.concat([df_PCA,df_ncPCA,df_cPCA],ignore_index=True)
+    if c == 1:
+        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend=True)
+    else:
+        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend = False)
+    title(ba_name)
+    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
+    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
+
+
+

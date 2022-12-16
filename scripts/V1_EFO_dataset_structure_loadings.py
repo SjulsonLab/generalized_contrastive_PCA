@@ -263,3 +263,36 @@ subplot(1,2,2)
 stem(loadings_session['PCns_loadings'][3][0][:,1])
 title('PCsws2')
 xlabel('neurons')
+
+#%% trying to make summary of sparsity
+
+def gini(x):
+    # (Warning: This is a concise implementation, but it is O(n**2)
+    # in time and memory, where n = len(x).  *Don't* pass in huge
+    # samples!)
+    import numpy as np
+    # Mean absolute difference
+    mad = np.abs(np.subtract.outer(x, x)).mean()
+    # Relative mean absolute difference
+    rmad = mad/np.mean(x)
+    # Gini coefficient
+    g = 0.5 * rmad
+    return g
+
+ncPCA_g = []
+PCA_g   = []
+for ses in np.arange(6):
+    for cv in np.arange(5):
+        ncPCS = loadings_session['ncPCA_loadings'][ses][cv]
+        PCS = loadings_session['PCns_loadings'][ses][cv]
+        for pc in np.arange(10):
+            ncPCA_g.append(gini(np.abs(ncPCS[:,pc])))
+            PCA_g.append(gini(np.abs(PCS[:,pc])))
+
+gini = np.hstack((ncPCA_g,PCA_g));
+method = np.hstack((np.tile('ncPCA',int(gini.shape[0]/2)),np.tile('PCA',int(gini.shape[0]/2))))
+
+df = pd.DataFrame(data=[gini,method],index=('gini coefficient','method'))
+df = df.T
+
+sns.boxplot(data=df,x="method",y="gini coefficient")

@@ -155,7 +155,7 @@ def frref(A, TOL=None, TYPE=''):
         # return A, jb
 
 #code for cPCA, useful for comparison and test
-def cPCA(background,foreground,alpha=1):
+def cPCA(background,foreground,n_components=2,alpha=1):
     #code to do cPCA for comparison, this return loadings
     import numpy as np
     import numpy.linalg as LA
@@ -166,7 +166,8 @@ def cPCA(background,foreground,alpha=1):
     
     sigma = fg_cov - alpha*bg_cov
     w, v = LA.eig(sigma)
-    eig_idx = np.argsort(w)
+    eig_idx = np.argpartition(w, -n_components)[-n_components:]
+    eig_idx = eig_idx[np.argsort(-w[eig_idx])]
     
     cPCs = v[:,eig_idx]
     return cPCs
