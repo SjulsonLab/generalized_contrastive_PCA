@@ -30,7 +30,7 @@ from ncPCA import ncPCA
 from ncPCA import cPCA
 #%%
 #define an accuracy function to be minimized
-cvfold = StratifiedKFold()
+cvfold = StratifiedKFold(shuffle=True)
 def cPCA_accuracy(Xbg,Xtg,labels,alpha):
     #X is the full data, preprocessed for cPCA
     #Xtg is the X target and Xbg is the background
@@ -61,7 +61,7 @@ def cPCA_accuracy(Xbg,Xtg,labels,alpha):
         clf.fit(Xtg_train_proj,labels_train)
         accuracy.append(clf.score(Xtg_test_proj, labels_test))
     
-    accuracy = -1*(np.hstack(accuracy).mean())
+    accuracy = -1*(np.hstack(accuracy))
     return accuracy
 
 def ncPCA_accuracy(Xbg,Xtg,labels):
@@ -96,16 +96,16 @@ def ncPCA_accuracy(Xbg,Xtg,labels):
         clf.fit(Xtg_train_proj,labels[train_ind])
         accuracy.append(clf.score(Xtg_test_proj, labels[test_ind]))
         
-    accuracy = np.hstack(accuracy).mean()
+    accuracy = np.hstack(accuracy)
     return accuracy
 #%% plot to test the cPCA
-figure()
-subplot(1,2,1)
-scatter(Xtg_train_proj[np.where(labels_train==0),0],Xtg_train_proj[np.where(labels_train==0),1],color='w')
-scatter(Xtg_train_proj[np.where(labels_train==1),0],Xtg_train_proj[np.where(labels_train==1),1],color='r')
-subplot(1,2,2)
-scatter(Xtg_test_proj[np.where(labels_test==0),0],Xtg_test_proj[np.where(labels_test==0),1],color='w')
-scatter(Xtg_test_proj[np.where(labels_test==1),0],Xtg_test_proj[np.where(labels_test==1),1],color='r')
+#figure()
+#subplot(1,2,1)
+#scatter(Xtg_train_proj[np.where(labels_train==0),0],Xtg_train_proj[np.where(labels_train==0),1],color='w')
+#scatter(Xtg_train_proj[np.where(labels_train==1),0],Xtg_train_proj[np.where(labels_train==1),1],color='r')
+#subplot(1,2,2)
+#scatter(Xtg_test_proj[np.where(labels_test==0),0],Xtg_test_proj[np.where(labels_test==0),1],color='w')
+#scatter(Xtg_test_proj[np.where(labels_test==1),0],Xtg_test_proj[np.where(labels_test==1),1],color='r')
 #%% loading data
 
 #going to the repo directory
@@ -140,7 +140,7 @@ labels = np.array(sub_group_labels)
 #use scipy optimize fmin to minimize it
 def cPCA_accuracy_loaded(alpha):
     neg_acc = cPCA_accuracy(background,target,labels,alpha)
-    return neg_acc
+    return neg_acc.mean()
 
 #test = optimize.fmin(cPCA_accuracy_loaded,x0=0,xtol=1e-9,ftol=1e-6)
 test = optimize.minimize(cPCA_accuracy_loaded,x0=7,method='Nelder-Mead')

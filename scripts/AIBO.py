@@ -80,6 +80,23 @@ with open(r'/mnt/probox/allen_institute_data/pkl_sessions/array_units', 'wb') as
 
 
 #%% performing analysis, session loop starts here
+scores_total         = []
+track_fold           = []
+component_num        = []
+track_method         = []
+direction_cumulative = []
+stim_type            = []
+number_units         = []
+brain_area_name      = []
+session_name         = []
+
+loadings_dict  = {}
+loadings_dict['ncPCA'] = []
+loadings_dict['PCns'] = []
+loadings_dict['PCsg'] = []
+loadings_dict['brain_area'] = []
+loadings_dict['session'] = []
+
 for session_id in selected_sessions.index.values:
 
     loaded_session = cache.get_session_data(session_id)
@@ -154,8 +171,12 @@ for session_id in selected_sessions.index.values:
     WE WILL CLEAN THE THING, UNLESS WE WANT TO KEEP IT LIKE THAT AND SAVE A
     A FILE FOR EVERY SESSION
     """
-    
-    for ba_name in array_of_ba:
+    """Here's a plan to store the results, save a dictionary with a column of 
+        scores (acc/error) | fold | PCnumber | method | fw/bw | variable (ns/sg) | brain area name | session | 
+        
+        Also: change the static grating to be error calcualting
+    """
+   """ for ba_name in array_of_ba:
         brain_area_dict['scores_ncPCA_fw_ns_'+ba_name] = []
         brain_area_dict['scores_ncPCA_fw_sg_'+ba_name] = []
         brain_area_dict['scores_ncPCA_bw_ns_'+ba_name] = []
@@ -171,7 +192,7 @@ for session_id in selected_sessions.index.values:
         
         #for saving PCA
         brain_area_dict['scores_PCA_ns_'+ba_name] = []
-        brain_area_dict['scores_PCA_sg_'+ba_name] = []
+        brain_area_dict['scores_PCA_sg_'+ba_name] = [] """
         
     for ba_name in array_of_ba:
         units_idx = spikes_info["ecephys_structure_acronym"]==ba_name
@@ -179,25 +200,27 @@ for session_id in selected_sessions.index.values:
         if sum(units_idx.values) >= min_n_cell:
             
             #declaring variables before
-            scores_PCA_ns = []
-            scores_PCA_sg = []
-            scores_ncPCA_fw_ns = []
-            scores_ncPCA_bw_ns = []
-            scores_ncPCA_fw_sg = []
-            scores_ncPCA_bw_sg = []
-            scores_cPCA_fw_ns = []
-            scores_cPCA_bw_ns = []
-            scores_cPCA_fw_sg = []
-            scores_cPCA_bw_sg = []
-            alpha2save = []
+            #scores_PCA_ns = []
+            #scores_PCA_sg = []
+            #scores_ncPCA_fw_ns = []
+            #scores_ncPCA_bw_ns = []
+            #scores_ncPCA_fw_sg = []
+            #scores_ncPCA_bw_sg = []
+            #scores_cPCA_fw_ns = []
+            #scores_cPCA_bw_ns = []
+            #scores_cPCA_fw_sg = []
+            #scores_cPCA_bw_sg = []
+            #alpha2save = []
             
             ### This is where the cross validation starts
             #first we set up the train and test set for both datasets
             #
             
             #getting CV indices for SG separately because it has different size than NS
+            fold = 0
             sgcv = kcv.split(spikes_zsc_sg)
             for train_ind_ns,test_ind_ns in kcv.split(spikes_zsc_ns):
+                fold+=1
                 
                 train_ind_ns = train_ind_ns.reshape(train_ind_ns.shape[0],1)
                 test_ind_ns  = test_ind_ns.reshape(test_ind_ns.shape[0],1)
@@ -216,7 +239,7 @@ for session_id in selected_sessions.index.values:
                 #zeroing any cell that was nan (i.e. no activity)
                 train_ns[np.isnan(train_ns)] = 0
                 test_ns[np.isnan(test_ns)]   = 0
-                train_sg[np.isnan(train_sg)]  = 0
+                train_sg[np.isnan(train_sg)] = 0
                 test_sg[np.isnan(test_sg)]   = 0
             
                 """ This block will do ncPCA """
@@ -227,38 +250,39 @@ for session_id in selected_sessions.index.values:
                 _,temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
                                              loadings_ncpca, analysis='both')
 
-                ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
+                
+                ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_error_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
                                                  loadings_ncpca, analysis='both')
                 
-                scores_ncPCA_fw_ns.append(temp_fw_ns)
-                scores_ncPCA_bw_ns.append(temp_bw_ns)
-                scores_ncPCA_fw_sg.append(temp_fw_sg)
-                scores_ncPCA_bw_sg.append(temp_bw_sg)
+                #scores_ncPCA_fw_ns.append(temp_fw_ns)
+                #scores_ncPCA_bw_ns.append(temp_bw_ns)
+                #scores_ncPCA_fw_sg.append(temp_fw_sg)
+                #scores_ncPCA_bw_sg.append(temp_bw_sg)
                 """ This block will calculate for cPCA """
                 
                 #first getting alphas optimized (?) for the dataset <- this needs to be checked if it's true
-                n_components = loadings_ncpca.shape[1]
+                #n_components = loadings_ncpca.shape[1]
                 #mdl = CPCA(n_components)
                 #_, alpha_values = mdl.fit_transform(train_ns,train_sg, return_alphas= True)
                 #alpha2save.append(alpha_values)
     
                 #alpha_values = 1
                 #for alpha in alpha_values:
-                alpha = 1   
-                cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
+                #alpha = 1   
+                #cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
 
-                _,temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
-                                                                        labels_ns_test,
-                                                                        cPCs, analysis='both')
+                #_,temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                #                                                        labels_ns_test,
+                #                                                        cPCs, analysis='both')
 
-                cPCs_num,temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
-                                                                        labels_sg_test,
-                                                                        cPCs, analysis='both')
+                #cPCs_num,temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                #                                                        labels_sg_test,
+                #                                                        cPCs, analysis='both')
                 
-                scores_cPCA_fw_ns.append(temp_fw_ns)
-                scores_cPCA_bw_ns.append(temp_bw_ns)
-                scores_cPCA_fw_sg.append(temp_fw_sg)
-                scores_cPCA_bw_sg.append(temp_bw_sg)
+                #scores_cPCA_fw_ns.append(temp_fw_ns)
+                #scores_cPCA_bw_ns.append(temp_bw_ns)
+                #scores_cPCA_fw_sg.append(temp_fw_sg)
+                #scores_cPCA_bw_sg.append(temp_bw_sg)
 
                 
                 """ This block will calculate the scores for regular PCA"""
@@ -269,33 +293,82 @@ for session_id in selected_sessions.index.values:
 
                 PCns_num,temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
                                                                         labels_ns_test, Vns.T)
-                PCsg_num,temp_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
+                PCsg_num,temp_sg = utils.cumul_error_projected(train_sg, labels_sg_train, test_sg,
                                                             labels_sg_test, Vsg.T)
 
-                scores_PCA_ns.append(temp_ns)
-                scores_PCA_sg.append(temp_sg)
-
-            #saving ncPCA
-            
-            brain_area_dict['scores_ncPCA_fw_ns_'+ba_name].append(scores_ncPCA_fw_ns)
-            brain_area_dict['scores_ncPCA_fw_sg_'+ba_name].append(scores_ncPCA_fw_sg)
-            brain_area_dict['scores_ncPCA_bw_ns_'+ba_name].append(scores_ncPCA_bw_ns)
-            brain_area_dict['scores_ncPCA_bw_sg_'+ba_name].append(scores_ncPCA_bw_sg)
-            
-            #saving cPCA
-            brain_area_dict['scores_cPCA_fw_ns_'+ba_name].append(scores_cPCA_fw_ns)
-            brain_area_dict['scores_cPCA_fw_sg_'+ba_name].append(scores_cPCA_fw_sg)
-            brain_area_dict['scores_cPCA_bw_ns_'+ba_name].append(scores_cPCA_bw_ns)
-            brain_area_dict['scores_cPCA_bw_sg_'+ba_name].append(scores_cPCA_bw_sg)
-            #saving alpha
-            brain_area_dict['alpha_value_of_cPCA'+ba_name].append(alpha2save)
-            
-            #saving PCA
-            brain_area_dict['scores_PCA_ns_'+ba_name].append(scores_PCA_ns)
-            brain_area_dict['scores_PCA_sg_'+ba_name].append(scores_PCA_sg)
-            
-# TODO: add lines of code to save the brain_area_dict for each session, or should we save each session as a pickle??
-
+                #scores_PCA_ns.append(temp_ns)
+                #scores_PCA_sg.append(temp_sg)
+                
+                scores_total.append(np.concatenate(temp_fw_ns,temp_bw_sg,temp_fw_sg,temp_bw_sg,
+                                                   temp_ns,temp_sg))
+                #array of PC and ncPC folds
+                track_fold.append(np.concatenate(np.tile(fold,len(temp_fw_ns)),
+                                                 np.tile(fold,len(temp_bw_ns)),
+                                                 np.tile(fold,len(temp_fw_sg)),
+                                                 np.tile(fold,len(temp_bw_sg)),
+                                                 np.tile(fold,len(temp_ns)),
+                                                 np.tile(fold,len(temp_sg)),
+                                                 ))
+                
+                #array of PC and ncPC numbers and order
+                component_num.append(np.concatenate(ncPCs_num,
+                                                 ncPCs_num,
+                                                 ncPCs_num,
+                                                 ncPCs_num,
+                                                 PCns_num,
+                                                 PCsg_num,
+                                                 ))
+                
+                #array of method string
+                track_method.append(np.concatenate(np.tile('ncPCA',len(temp_fw_ns)),
+                                                 np.tile('ncPCA',len(temp_bw_ns)),
+                                                 np.tile('ncPCA',len(temp_fw_sg)),
+                                                 np.tile('ncPCA',len(temp_bw_sg)),
+                                                 np.tile('PCAns',len(temp_ns)),
+                                                 np.tile('PCAsg',len(temp_sg)),
+                                                 ))
+                
+                #array of fw/bw
+                direction_cumulative.append(np.concatenate(np.tile('fw',len(temp_fw_ns)),
+                                                 np.tile('bw',len(temp_bw_ns)),
+                                                 np.tile('fw',len(temp_fw_sg)),
+                                                 np.tile('bw',len(temp_bw_sg)),
+                                                 np.tile('fw',len(temp_ns)),
+                                                 np.tile('fw',len(temp_sg)),
+                                                 ))
+                
+                #array of variable decoded (ns/sg)
+                stim_type.append(np.concatenate(np.tile('NS',len(temp_fw_ns)),
+                                                 np.tile('NS',len(temp_bw_ns)),
+                                                 np.tile('SG',len(temp_fw_sg)),
+                                                 np.tile('SG',len(temp_bw_sg)),
+                                                 np.tile('NS',len(temp_ns)),
+                                                 np.tile('SG',len(temp_sg)),
+                                                 ))
+                
+                #number of unitts in this session/brain area
+                number_units.append(np.concatenate(np.tile(sum(units_idx.values),len(temp_fw_ns)+
+                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg))))
+                #brain area name
+                brain_area_name.append(np.concatenate(np.tile(ba_name,len(temp_fw_ns)+
+                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg))))
+                
+                #session name
+                session_name.append(np.concatenate(np.tile(session_id,len(temp_fw_ns)+
+                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg))))
+                
+            # save another dict with the PC and ncPCA loadings
+                loadings_dict['ncPCA'].append(loadings_ncpca)
+                loadings_dict['PCns'].append(Vns.T)
+                loadings_dict['PCsg'].append(Vsg.T)
+                loadings_dict['brain_area'].append(ba_name)
+                loadings_dict['session'].append(session_id)
     #%% add dictionary to pickle file
     #file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
 
