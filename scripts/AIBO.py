@@ -40,7 +40,8 @@ min_n_cell = 50 #min number of cells in the brain area to be used
 kcv = KFold() #cross-validation method
 
 #%% import custom modules
-repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
+#repo_dir = "/gs/gsfs0/users/edeolive/github/normalized_contrastive_PCA/" #repository dir
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/"
 sys.path.append(repo_dir)
 from ncPCA import ncPCA
 from ncPCA import cPCA
@@ -48,6 +49,7 @@ import ncPCA_project_utils as utils #this is going to be our package of reusable
 #%% preparing data to be loaded
 
 data_directory = '/mnt/probox/allen_institute_data/ecephys/' # must be a valid directory in your filesystem
+#data_directory = '/gs/gsfs0/users/edeolive/allen_institute_data/ecephys/'
 manifest_path = os.path.join(data_directory, "manifest.json")
 cache = EcephysProjectCache.from_warehouse(manifest=manifest_path)
 
@@ -163,20 +165,14 @@ for session_id in selected_sessions.index.values:
     #%% getting ncPCA and cPCA loadings
 
     # fw ns and bw ns cPCA loadings, ns PCA loadings and fw ns cPCA loadings
-    brain_area_dict = {};
+    #brain_area_dict = {};
     #array_of_ba = ['LGd','VISp','VISrl','VISpm'] #we are supposed to be using the array_of_ba identified on the cell before
     
-    #TODO: this will have to leave later
-    """THIS WILL NEED TO BE DELETED LATER, BECAUSE OTHERWISE FOR EVERY SESSION 
-    WE WILL CLEAN THE THING, UNLESS WE WANT TO KEEP IT LIKE THAT AND SAVE A
-    A FILE FOR EVERY SESSION
-    """
     """Here's a plan to store the results, save a dictionary with a column of 
         scores (acc/error) | fold | PCnumber | method | fw/bw | variable (ns/sg) | brain area name | session | 
         
-        Also: change the static grating to be error calcualting
     """
-   """ for ba_name in array_of_ba:
+    """ for ba_name in array_of_ba:
         brain_area_dict['scores_ncPCA_fw_ns_'+ba_name] = []
         brain_area_dict['scores_ncPCA_fw_sg_'+ba_name] = []
         brain_area_dict['scores_ncPCA_bw_ns_'+ba_name] = []
@@ -197,7 +193,27 @@ for session_id in selected_sessions.index.values:
     for ba_name in array_of_ba:
         units_idx = spikes_info["ecephys_structure_acronym"]==ba_name
 
-        if sum(units_idx.values) >= min_n_cell:
+        """Code commented below is to check firing rate, not fully implemented yet!"""
+        #checking firing rate to include the cells or not! natural scenes
+        #total_ns_dur = np.diff(ns_intervals.values).sum()
+        #ns_fr = spikes_binned_ns[:,units_idx].sum(axis=0)/total_ns_dur
+        #checking for static gratings
+        #total_sg_dur = np.diff(sg_intervals.values).sum()
+        #sg_fr = spikes_binned_sg[:,units_idx].sum(axis=0)/total_sg_dur
+        
+        #checking for amount of bins where no cell fires, if more than 20% then throw the brain area out 
+        test_sg = spikes_binned_sg[:,units_idx].sum(axis=1)
+        ratio_dur_sg = np.sum(test_sg==0)/test_sg.shape[0]
+        if ratio_dur_sg>0.20:
+            continue
+        
+        test_ns = spikes_binned_ns[:,units_idx].sum(axis=1)
+        ratio_dur_ns = np.sum(test_ns==0)/test_ns.shape[0]
+        if ratio_dur_ns>0.20:
+            continue
+        
+        """ALSO ADD RETURNING NULL IF NCPCA DOESN'T WORK!!!!"""
+        if units_idx.values.sum() >= min_n_cell:
             
             #declaring variables before
             #scores_PCA_ns = []
@@ -246,19 +262,22 @@ for session_id in selected_sessions.index.values:
                 # fitting ncPCA to train set
                 ncPCA_mdl = ncPCA(basis_type='intersect',Nshuffle=0)
                 ncPCA_mdl.fit(train_sg,train_ns)
+                if ncPCA_mdl.number_of_shared_basis==0:
+                    continue #this could be a cause of some brain areas having less than 5 folds
+                
                 loadings_ncpca = ncPCA_mdl.loadings_
                 _,temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
-                                             loadings_ncpca, analysis='both')
+                                             loadings_ncpca, analysis='both',step_size=1)
 
                 
                 ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_error_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
-                                                 loadings_ncpca, analysis='both')
+                                                 loadings_ncpca, analysis='both',step_size=1)
                 
                 #scores_ncPCA_fw_ns.append(temp_fw_ns)
                 #scores_ncPCA_bw_ns.append(temp_bw_ns)
                 #scores_ncPCA_fw_sg.append(temp_fw_sg)
                 #scores_ncPCA_bw_sg.append(temp_bw_sg)
-                """ This block will calculate for cPCA """
+                #""" This block will calculate for cPCA """
                 
                 #first getting alphas optimized (?) for the dataset <- this needs to be checked if it's true
                 #n_components = loadings_ncpca.shape[1]
@@ -285,102 +304,109 @@ for session_id in selected_sessions.index.values:
                 #scores_cPCA_bw_sg.append(temp_bw_sg)
 
                 
-                """ This block will calculate the scores for regular PCA"""
+                """ This block will calculate the scores for regular PCA """
                 #the PCs for prediction also need to be cross validated
                 _,_,Vns = np.linalg.svd(train_ns,full_matrices=False)
                 _,_,Vsg = np.linalg.svd(train_sg,full_matrices=False)
 
 
                 PCns_num,temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
-                                                                        labels_ns_test, Vns.T)
+                                                                        labels_ns_test, Vns.T,step_size=1)
                 PCsg_num,temp_sg = utils.cumul_error_projected(train_sg, labels_sg_train, test_sg,
-                                                            labels_sg_test, Vsg.T)
+                                                            labels_sg_test, Vsg.T,step_size=1)
 
                 #scores_PCA_ns.append(temp_ns)
                 #scores_PCA_sg.append(temp_sg)
                 
-                scores_total.append(np.concatenate(temp_fw_ns,temp_bw_sg,temp_fw_sg,temp_bw_sg,
-                                                   temp_ns,temp_sg))
+                scores_total.append(np.concatenate((temp_fw_ns,temp_bw_sg,temp_fw_sg,temp_bw_sg,
+                                                   temp_ns,temp_sg)))
                 #array of PC and ncPC folds
-                track_fold.append(np.concatenate(np.tile(fold,len(temp_fw_ns)),
+                track_fold.append(np.concatenate((np.tile(fold,len(temp_fw_ns)),
                                                  np.tile(fold,len(temp_bw_ns)),
                                                  np.tile(fold,len(temp_fw_sg)),
                                                  np.tile(fold,len(temp_bw_sg)),
                                                  np.tile(fold,len(temp_ns)),
-                                                 np.tile(fold,len(temp_sg)),
-                                                 ))
+                                                 np.tile(fold,len(temp_sg)))))
                 
                 #array of PC and ncPC numbers and order
-                component_num.append(np.concatenate(ncPCs_num,
+                component_num.append(np.concatenate((ncPCs_num,
                                                  ncPCs_num,
                                                  ncPCs_num,
                                                  ncPCs_num,
                                                  PCns_num,
-                                                 PCsg_num,
-                                                 ))
+                                                 PCsg_num)))
                 
                 #array of method string
-                track_method.append(np.concatenate(np.tile('ncPCA',len(temp_fw_ns)),
+                track_method.append(np.concatenate((np.tile('ncPCA',len(temp_fw_ns)),
                                                  np.tile('ncPCA',len(temp_bw_ns)),
                                                  np.tile('ncPCA',len(temp_fw_sg)),
                                                  np.tile('ncPCA',len(temp_bw_sg)),
                                                  np.tile('PCAns',len(temp_ns)),
-                                                 np.tile('PCAsg',len(temp_sg)),
-                                                 ))
+                                                 np.tile('PCAsg',len(temp_sg)))))
                 
                 #array of fw/bw
-                direction_cumulative.append(np.concatenate(np.tile('fw',len(temp_fw_ns)),
+                direction_cumulative.append(np.concatenate((np.tile('fw',len(temp_fw_ns)),
                                                  np.tile('bw',len(temp_bw_ns)),
                                                  np.tile('fw',len(temp_fw_sg)),
                                                  np.tile('bw',len(temp_bw_sg)),
                                                  np.tile('fw',len(temp_ns)),
-                                                 np.tile('fw',len(temp_sg)),
-                                                 ))
+                                                 np.tile('fw',len(temp_sg)))))
                 
                 #array of variable decoded (ns/sg)
-                stim_type.append(np.concatenate(np.tile('NS',len(temp_fw_ns)),
+                stim_type.append(np.concatenate((np.tile('NS',len(temp_fw_ns)),
                                                  np.tile('NS',len(temp_bw_ns)),
                                                  np.tile('SG',len(temp_fw_sg)),
                                                  np.tile('SG',len(temp_bw_sg)),
                                                  np.tile('NS',len(temp_ns)),
-                                                 np.tile('SG',len(temp_sg)),
-                                                 ))
+                                                 np.tile('SG',len(temp_sg)))))
                 
                 #number of unitts in this session/brain area
-                number_units.append(np.concatenate(np.tile(sum(units_idx.values),len(temp_fw_ns)+
-                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                number_units.append(np.tile(sum(units_idx.values),len(temp_fw_ns)+len(temp_bw_ns)+
                                                       len(temp_fw_sg)+len(temp_bw_sg)+
-                                                      len(temp_ns)+len(temp_sg))))
+                                                      len(temp_ns)+len(temp_sg)))
                 #brain area name
-                brain_area_name.append(np.concatenate(np.tile(ba_name,len(temp_fw_ns)+
-                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                brain_area_name.append(np.tile(ba_name,len(temp_fw_ns)+len(temp_bw_ns)+
                                                       len(temp_fw_sg)+len(temp_bw_sg)+
-                                                      len(temp_ns)+len(temp_sg))))
+                                                      len(temp_ns)+len(temp_sg)))
                 
                 #session name
-                session_name.append(np.concatenate(np.tile(session_id,len(temp_fw_ns)+
-                                                      len(temp_bw_ns)+len(temp_bw_ns)+
+                session_name.append(np.tile(session_id,len(temp_fw_ns)+len(temp_bw_ns)+
                                                       len(temp_fw_sg)+len(temp_bw_sg)+
-                                                      len(temp_ns)+len(temp_sg))))
+                                                      len(temp_ns)+len(temp_sg)))
                 
             # save another dict with the PC and ncPCA loadings
                 loadings_dict['ncPCA'].append(loadings_ncpca)
                 loadings_dict['PCns'].append(Vns.T)
                 loadings_dict['PCsg'].append(Vsg.T)
                 loadings_dict['brain_area'].append(ba_name)
-                loadings_dict['session'].append(session_id)
-    #%% add dictionary to pickle file
-    #file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
+                loadings_dict['session'].append(session_id)\
 
-    # saving the brain_area_dict file
-    with open('/mnt/SSD4TB/ncPCA_files/test_AIBO.pickle', 'wb') as handle:
-         pickle.dump(brain_area_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+"saving the main results"
+main_results = {}
+main_results['scores']            = np.hstack(scores_total)
+main_results['folds']             = np.hstack(track_fold) 
+main_results['PC_number']         = np.hstack(component_num)
+main_results['Method']            = np.hstack(track_method)
+main_results['direction']         = np.hstack(direction_cumulative)
+main_results['stim_type']         = np.hstack(stim_type)
+main_results['units_number']      = np.hstack(number_units)
+main_results['brain_region_name'] = np.hstack(brain_area_name)
+main_results['session_name']      = np.hstack(session_name)
+
+#%% add dictionary to pickle file
+#file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
+# saving the brain_area_dict file
+
+df= pd.DataFrame(data=main_results)
+with open('/mnt/SSD4TB/ncPCA_files/dataframe_test_AIBO.pickle', 'wb') as handle:
+         pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # TODO: add plotting code
 
 #%% reading file
-with open('/mnt/SSD4TB/ncPCA_files/test_AIBO.pickle', 'rb') as handle:
+with open('/mnt/SSD4TB/ncPCA_files/dataframe_test_AIBO.pickle', 'rb') as handle:
      x = pickle.load(handle)
 
 
@@ -390,6 +416,7 @@ rcParams['lines.linewidth'] = 2.5
 rcParams['axes.linewidth']  = 1.5
 rcParams['font.size'] = 12
 
+"""
 #%% plotting performance curves
 
 sns.set_style("ticks")
@@ -594,4 +621,4 @@ for ba_name in array_of_ba2:
     #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
 
 
-
+"""

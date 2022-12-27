@@ -36,9 +36,9 @@ def cumul_accuracy_projected(Xtrain,Ytrain,Xtest,Ytest,loadings, analysis='fw',s
         if analysis=="both":
             bw_train= np.dot(Xtrain,loadings_flip[:,:dim+1])
             bw_test= np.dot(Xtest,loadings_flip[:,:dim+1])
-            clf_fw = svm.LinearSVC().fit(bw_train, Ytrain) # fitting
-            clf_fw_score = clf_fw.score(bw_test, Ytest) # prediction
-            bw.append(clf_fw_score)
+            clf_bw = svm.LinearSVC().fit(bw_train, Ytrain) # fitting
+            clf_bw_score = clf_bw.score(bw_test, Ytest) # prediction
+            bw.append(clf_bw_score)
 
    x = np.arange(loadings.shape[1],step=step_size)
    fw = np.hstack(fw)
@@ -69,15 +69,17 @@ def cumul_error_projected(Xtrain,Ytrain,Xtest,Ytest,loadings, analysis='fw',step
         fw_train = np.dot(Xtrain,loadings[:,:dim+1])
         fw_test = np.dot(Xtest,loadings[:,:dim+1])
         clf_fw = linear_model.LinearRegression().fit(fw_train, Ytrain) # fitting
-        clf_fw_score = clf_fw.score(fw_test,Ytest) # predicton
-        fw.append(clf_fw_score)
+        Yhat = clf_fw.predict(fw_test) # predicton
+        fw_score = np.median(Ytest-Yhat)
+        fw.append(fw_score)
 
         if analysis=="both":
             bw_train= np.dot(Xtrain,loadings_flip[:,:dim+1])
             bw_test= np.dot(Xtest,loadings_flip[:,:dim+1])
-            clf_fw = linear_model.LinearRegression().fit(bw_train, Ytrain) # fitting
-            clf_fw_score = clf_fw.score(bw_test, Ytest) # prediction
-            bw.append(clf_fw_score)
+            clf_bw = linear_model.LinearRegression().fit(bw_train, Ytrain) # fitting
+            Yhat = clf_bw.predict(bw_test) # prediction
+            bw_score =  np.median(Ytest-Yhat)
+            bw.append(bw_score)
 
    x = np.arange(loadings.shape[1],step=step_size)
    fw = np.hstack(fw)

@@ -482,68 +482,78 @@ class ncPCA():
         basis_mat2 = np.array(basis_mat).T
         
         if basis_mat2.size==0:
-            raise ValueError("No shared basis found between N1 and N2")
-        
-        J = LA.orth(basis_mat2) #orthonormal shared basis for Ns and Nw
-        k = J.shape[1]
-        
-        ## Calculating ncPCA below
-        
-        #covariance matrices
-        N1N1 = np.dot(N1.T,N1)
-        N2N2 = np.dot(N2.T,N2)
-        
-        
-        ######### Iteratively take out the ncPCs by deflating J
-        n_basis = J.shape[1]
-        Jnew = J
-        for aa in np.arange(n_basis):
-            B = LA.sqrtm(np.linalg.multi_dot((Jnew.T,N2N2+N1N1,Jnew)))
+            warnings.warn("No shared basis found between N1 and N2")
+            self.number_of_shared_basis = 0
+            self.loadings_ = np.nan
+            self.ncPCs_values_ = np.nan
+            self.N1_scores_ = np.nan
+            self.N2_scores_ = np.nan
+            self.N1 = np.nan
+            self.N2 = np.nan
+        else:
             
-            #JBinv = np.linalg.lstsq(np.linalg.inv(J),np.linalg.inv(B))
-            #JBinv,_,_,_ = np.linalg.lstsq(J.T,np.linalg.inv(B))
-            #JBinv = np.linalg.solve(J.T,B.T)
-            #JBinv = np.dot(J,np.linalg.pinv(B))
             
-            JBinv =  np.linalg.lstsq(Jnew.T, np.linalg.pinv(B))[0]
+            J = LA.orth(basis_mat2) #orthonormal shared basis for Ns and Nw
+            k = J.shape[1]
             
-            # sort according to decreasing eigenvalue
-            D,y = np.linalg.eig(np.linalg.multi_dot((JBinv.T,N2N2-N1N1,JBinv)))
+            ## Calculating ncPCA below
             
-            Y = y[:,np.flip(np.argsort(D))]
+            #covariance matrices
+            N1N1 = np.dot(N1.T,N1)
+            N2N2 = np.dot(N2.T,N2)
             
-            X_temp = np.dot(JBinv,Y[:,0]);
             
-            if aa == 0:
-                X = X_temp/np.linalg.norm(X_temp,axis=0)
-            else:
-                temp_norm_ldgs = X_temp/np.linalg.norm(X_temp,axis=0)
-                X = np.column_stack((X,temp_norm_ldgs))
+            ######### Iteratively take out the ncPCs by deflating J
+            n_basis = J.shape[1]
+            Jnew = J
+            for aa in np.arange(n_basis):
+                B = LA.sqrtm(np.linalg.multi_dot((Jnew.T,N2N2+N1N1,Jnew)))
+                
+                #JBinv = np.linalg.lstsq(np.linalg.inv(J),np.linalg.inv(B))
+                #JBinv,_,_,_ = np.linalg.lstsq(J.T,np.linalg.inv(B))
+                #JBinv = np.linalg.solve(J.T,B.T)
+                #JBinv = np.dot(J,np.linalg.pinv(B))
+                
+                JBinv =  np.linalg.lstsq(Jnew.T, np.linalg.pinv(B))[0]
+                
+                # sort according to decreasing eigenvalue
+                D,y = np.linalg.eig(np.linalg.multi_dot((JBinv.T,N2N2-N1N1,JBinv)))
+                
+                Y = y[:,np.flip(np.argsort(D))]
+                
+                X_temp = np.dot(JBinv,Y[:,0]);
+                
+                if aa == 0:
+                    X = X_temp/np.linalg.norm(X_temp,axis=0)
+                else:
+                    temp_norm_ldgs = X_temp/np.linalg.norm(X_temp,axis=0)
+                    X = np.column_stack((X,temp_norm_ldgs))
+                
+                #deflating J
+                gamma = np.dot(np.linalg.pinv(B),Y[:,0])
+                gamma = gamma/np.linalg.norm(gamma) #normalizing by the norm
+                gamma_outer = np.outer(gamma,gamma.T)
+                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
+                Jnew = LA.orth(J_reduced)
+                #Jnew = J_reduced
+            ##########
             
-            #deflating J
-            gamma = np.dot(np.linalg.pinv(B),Y[:,0])
-            gamma = gamma/np.linalg.norm(gamma) #normalizing by the norm
-            gamma_outer = np.outer(gamma,gamma.T)
-            J_reduced = Jnew - np.dot(Jnew,gamma_outer)
-            Jnew = LA.orth(J_reduced)
-            #Jnew = J_reduced
-        ##########
-        
-        # getting top and bottom eigenvalues
-        Stop = np.linalg.multi_dot((X.T,N2N2-N1N1,X))
-        Sbot = np.linalg.multi_dot((X.T,N2N2+N1N1,X))
-        S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-        
-        self.loadings_ = X
-        self.ncPCs_values_ = S_total
-        self.N1_scores_ = np.dot(N1,X)
-        self.N2_scores_ = np.dot(N2,X)
-        self.N1 = N1
-        self.N2 = N2
-        
-        # shuffling to define a null distribution
-        if Nshuffle>0:
-            self.null_distribution()
+            # getting top and bottom eigenvalues
+            Stop = np.linalg.multi_dot((X.T,N2N2-N1N1,X))
+            Sbot = np.linalg.multi_dot((X.T,N2N2+N1N1,X))
+            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
+            
+            self.number_of_shared_basis = basis_mat2.shape[1]
+            self.loadings_ = X
+            self.ncPCs_values_ = S_total
+            self.N1_scores_ = np.dot(N1,X)
+            self.N2_scores_ = np.dot(N2,X)
+            self.N1 = N1
+            self.N2 = N2
+            
+            # shuffling to define a null distribution
+            if Nshuffle>0:
+                self.null_distribution()
         
     def transform(self,N1,N2):
         import numpy as np
