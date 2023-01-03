@@ -399,14 +399,14 @@ main_results['session_name']      = np.hstack(session_name)
 # saving the brain_area_dict file
 
 df= pd.DataFrame(data=main_results)
-with open('/mnt/SSD4TB/ncPCA_files/dataframe_test_AIBO.pickle', 'wb') as handle:
+with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'wb') as handle:
          pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # TODO: add plotting code
 
 #%% reading file
-with open('/mnt/SSD4TB/ncPCA_files/dataframe_test_AIBO.pickle', 'rb') as handle:
+with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'rb') as handle:
      x = pickle.load(handle)
 
 
