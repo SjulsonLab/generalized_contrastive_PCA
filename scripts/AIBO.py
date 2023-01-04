@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-Created on Wed Sep 15 16:54:10 2021
-Script to analyze data from allen institute part of the functional connectivity
-dataset. We want to see if lower rank PCs are able to predict drifting gratings 
-and natural images. The analysis steps will be:
-    
-    1) Get all the sessions from functional_connectivity dataset with VIsp
-    recordings
-    2) Perform PCA during the spontaneous activity recording
-    3) Predict the activity of drifting gratings using windowed PCs and random
-    projection
+Created on Wed Jan  4 08:40:25 2023
+
+Script to analyze the Allen Institute Brain Observatory dataset using ncPCA. Here we used the
+extracellular ephys recordings during visual stimulation.
+
+The goal is to:
+    1) Get spikes during static grating and natural scenes
+    2) In a cross-validated manner get PCs of natural scenes and static gratings and ncPCs using both
+    3) Show that ncPCs perform as well or better than PCs of that specific state
 
 @author: eliezyer
 """
+
 
 #%% importing essentials
 import os
@@ -165,30 +166,11 @@ for session_id in selected_sessions.index.values:
     #%% getting ncPCA and cPCA loadings
 
     # fw ns and bw ns cPCA loadings, ns PCA loadings and fw ns cPCA loadings
-    #brain_area_dict = {};
-    #array_of_ba = ['LGd','VISp','VISrl','VISpm'] #we are supposed to be using the array_of_ba identified on the cell before
     
-    """Here's a plan to store the results, save a dictionary with a column of 
+    """Here's how store the results, save a dictionary with a column of 
         scores (acc/error) | fold | PCnumber | method | fw/bw | variable (ns/sg) | brain area name | session | 
         
     """
-    """ for ba_name in array_of_ba:
-        brain_area_dict['scores_ncPCA_fw_ns_'+ba_name] = []
-        brain_area_dict['scores_ncPCA_fw_sg_'+ba_name] = []
-        brain_area_dict['scores_ncPCA_bw_ns_'+ba_name] = []
-        brain_area_dict['scores_ncPCA_bw_sg_'+ba_name] = []
-        
-        #for saving cPCA
-        brain_area_dict['scores_cPCA_fw_ns_'+ba_name] = []
-        brain_area_dict['scores_cPCA_fw_sg_'+ba_name] = []
-        brain_area_dict['scores_cPCA_bw_ns_'+ba_name] = []
-        brain_area_dict['scores_cPCA_bw_sg_'+ba_name] = []
-        #for saving alpha
-        brain_area_dict['alpha_value_of_cPCA'+ba_name] = []
-        
-        #for saving PCA
-        brain_area_dict['scores_PCA_ns_'+ba_name] = []
-        brain_area_dict['scores_PCA_sg_'+ba_name] = [] """
         
     for ba_name in array_of_ba:
         units_idx = spikes_info["ecephys_structure_acronym"]==ba_name
@@ -214,19 +196,6 @@ for session_id in selected_sessions.index.values:
         
         """ALSO ADD RETURNING NULL IF NCPCA DOESN'T WORK!!!!"""
         if units_idx.values.sum() >= min_n_cell:
-            
-            #declaring variables before
-            #scores_PCA_ns = []
-            #scores_PCA_sg = []
-            #scores_ncPCA_fw_ns = []
-            #scores_ncPCA_bw_ns = []
-            #scores_ncPCA_fw_sg = []
-            #scores_ncPCA_bw_sg = []
-            #scores_cPCA_fw_ns = []
-            #scores_cPCA_bw_ns = []
-            #scores_cPCA_fw_sg = []
-            #scores_cPCA_bw_sg = []
-            #alpha2save = []
             
             ### This is where the cross validation starts
             #first we set up the train and test set for both datasets
@@ -273,36 +242,6 @@ for session_id in selected_sessions.index.values:
                 ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_error_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
                                                  loadings_ncpca, analysis='both',step_size=1)
                 
-                #scores_ncPCA_fw_ns.append(temp_fw_ns)
-                #scores_ncPCA_bw_ns.append(temp_bw_ns)
-                #scores_ncPCA_fw_sg.append(temp_fw_sg)
-                #scores_ncPCA_bw_sg.append(temp_bw_sg)
-                #""" This block will calculate for cPCA """
-                
-                #first getting alphas optimized (?) for the dataset <- this needs to be checked if it's true
-                #n_components = loadings_ncpca.shape[1]
-                #mdl = CPCA(n_components)
-                #_, alpha_values = mdl.fit_transform(train_ns,train_sg, return_alphas= True)
-                #alpha2save.append(alpha_values)
-    
-                #alpha_values = 1
-                #for alpha in alpha_values:
-                #alpha = 1   
-                #cPCs = cPCA(train_sg,train_ns,alpha=alpha)[:,:n_components]
-
-                #_,temp_fw_ns, temp_bw_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
-                #                                                        labels_ns_test,
-                #                                                        cPCs, analysis='both')
-
-                #cPCs_num,temp_fw_sg, temp_bw_sg = utils.cumul_accuracy_projected(train_sg, labels_sg_train, test_sg,
-                #                                                        labels_sg_test,
-                #                                                        cPCs, analysis='both')
-                
-                #scores_cPCA_fw_ns.append(temp_fw_ns)
-                #scores_cPCA_bw_ns.append(temp_bw_ns)
-                #scores_cPCA_fw_sg.append(temp_fw_sg)
-                #scores_cPCA_bw_sg.append(temp_bw_sg)
-
                 
                 """ This block will calculate the scores for regular PCA """
                 #the PCs for prediction also need to be cross validated
@@ -314,12 +253,13 @@ for session_id in selected_sessions.index.values:
                                                                         labels_ns_test, Vns.T,step_size=1)
                 PCsg_num,temp_sg = utils.cumul_error_projected(train_sg, labels_sg_train, test_sg,
                                                             labels_sg_test, Vsg.T,step_size=1)
-
-                #scores_PCA_ns.append(temp_ns)
-                #scores_PCA_sg.append(temp_sg)
                 
-                scores_total.append(np.concatenate((temp_fw_ns,temp_bw_sg,temp_fw_sg,temp_bw_sg,
-                                                   temp_ns,temp_sg)))
+                scores_total.append(np.concatenate((temp_fw_ns,
+                                                    temp_bw_ns,
+                                                    temp_fw_sg,
+                                                    temp_bw_sg,
+                                                    temp_ns,
+                                                    temp_sg)))
                 #array of PC and ncPC folds
                 track_fold.append(np.concatenate((np.tile(fold,len(temp_fw_ns)),
                                                  np.tile(fold,len(temp_bw_ns)),
@@ -406,8 +346,8 @@ with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'wb') 
 # TODO: add plotting code
 
 #%% reading file
-with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'rb') as handle:
-     x = pickle.load(handle)
+#with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'rb') as handle:
+#     x = pickle.load(handle)
 
 
 #%% parameters for plotting
@@ -416,209 +356,3 @@ rcParams['lines.linewidth'] = 2.5
 rcParams['axes.linewidth']  = 1.5
 rcParams['font.size'] = 12
 
-"""
-#%% plotting performance curves
-
-sns.set_style("ticks")
-sns.set_context("talk")
-style.use('dark_background')
-#this is temporary
-#array_of_ba2 = array_of_ba[[1,2,3,5]]
-array_of_ba2 = ('LGd','VISp','VISrl','VISpm')
-n = len(array_of_ba2)
-c = 0
-figure(figsize=(25,5))
-for ba_name in array_of_ba2:
-    c +=1
-    subplot(1,n,c)
-            
-    n1 = np.shape(brain_area_dict['scores_cPCA_fw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_cPCA_fw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('cPCA',pc.size)
-    
-    df_cPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('ncPCA',pc.size)
-    
-    df_ncPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('PCA',pc.size)
-    
-    df_PCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    df = pd.concat([df_PCA,df_ncPCA,df_cPCA],ignore_index=True)
-    if c == 1:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend=True)
-    else:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend = False)
-    title(ba_name)
-    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
-    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
-
-suptitle('Cumulative components prediction')
-#%% performance curve PCA vs bw cPCA and ncPCA ns
-#this is temporary
-array_of_ba2 = array_of_ba[[1,2,3,5]]
-n = len(array_of_ba2)
-c = 0
-figure(figsize=(25,5))
-for ba_name in array_of_ba2:
-    c +=1
-    subplot(1,n,c)
-            
-    n1 = np.shape(brain_area_dict['scores_cPCA_bw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_cPCA_bw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('cPCA',pc.size)
-    
-    df_cPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_ncPCA_bw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_ncPCA_bw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('ncPCA',pc.size)
-    
-    df_ncPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('PCA',pc.size)
-    
-    df_PCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    df = pd.concat([df_PCA,df_ncPCA,df_cPCA],ignore_index=True)
-    if c == 1:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend=True)
-    else:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend = False)
-    title(ba_name)
-    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
-    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
-
-
-#%% plot fw PC prediction for SG
-
-sns.set_style("ticks")
-sns.set_context("talk")
-#this is temporary
-#array_of_ba2 = array_of_ba[[1,2,3,5]]
-array_of_ba2 = ('VISp','VISrl','VISal','VISpm')
-n = len(array_of_ba2)
-c = 0
-figure(figsize=(25,5))
-for ba_name in array_of_ba2:
-    c +=1
-    subplot(1,n,c)
-            
-    n1 = np.shape(brain_area_dict['scores_cPCA_fw_sg_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_cPCA_fw_sg_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('cPCA',pc.size)
-    
-    df_cPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_sg_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_sg_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('ncPCA',pc.size)
-    
-    df_ncPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_PCA_sg_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_PCA_sg_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('PCA',pc.size)
-    
-    df_PCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    df = pd.concat([df_PCA,df_ncPCA,df_cPCA],ignore_index=True)
-    if c == 1:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend=True)
-    else:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend = False)
-    title(ba_name)
-    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
-    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
-
-#%% plotting just ncPCA vs PC
-
-sns.set_style("ticks")
-sns.set_context("talk")
-style.use('dark_background')
-#this is temporary
-#array_of_ba2 = array_of_ba[[1,2,3,5]]
-array_of_ba2 = ('VISp','VISrl','VISal','VISpm')
-n = len(array_of_ba2)
-c = 0
-figure(figsize=(25,5))
-for ba_name in array_of_ba2:
-    c +=1
-    subplot(1,n,c)
-    
-    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('ncPCA',pc.size)
-    
-    df_ncPCA = pd.DataFrame({'PCnum':pc,'accuracy':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('PCA',pc.size)
-    
-    df_PCA = pd.DataFrame({'PCnum':pc,'accuracy':temp,'Method':method})
-    
-    df = pd.concat([df_PCA,df_ncPCA],ignore_index=True)
-    if c == 1:
-        sns.lineplot(data=df,x='PCnum',y='accuracy',hue='Method',legend=True)
-    else:
-        sns.lineplot(data=df,x='PCnum',y='accuracy',hue='Method',legend = False)
-    title(ba_name)
-    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
-    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
-
-suptitle('Cumulative components prediction')
-#%% performance curve PCA vs bw cPCA and ncPCA ns
-#this is temporary
-array_of_ba2 = array_of_ba[[1,2,3,5]]
-n = len(array_of_ba2)
-c = 0
-figure(figsize=(25,5))
-for ba_name in array_of_ba2:
-    c +=1
-    subplot(1,n,c)
-    
-    n1 = np.shape(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_ncPCA_fw_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('ncPCA',pc.size)
-    
-    df_ncPCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    n1 = np.shape(brain_area_dict['scores_PCA_ns_' + ba_name][0])[0]
-    temp = np.hstack(brain_area_dict['scores_PCA_ns_' + ba_name][0])
-    pc = np.tile(np.arange(temp.size/n1),n1);
-    method = np.tile('PCA',pc.size)
-    
-    df_PCA = pd.DataFrame({'pc':pc,'R^2':temp,'Method':method})
-    
-    df = pd.concat([df_PCA,df_ncPCA,df_cPCA],ignore_index=True)
-    if c == 1:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend=True)
-    else:
-        sns.lineplot(data=df,x='pc',y='R^2',hue='Method',legend = False)
-    title(ba_name)
-    #plot(np.mean(brain_area_dict['scores_ncPCA_fw_ns' + ba_name][0],axis=0))
-    #plot(np.mean(brain_area_dict['scores_cPCA_fw_ns_VISp'+ ba_name][0],axis=0))
-
-
-"""
