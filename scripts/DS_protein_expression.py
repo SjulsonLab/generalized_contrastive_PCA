@@ -53,9 +53,39 @@ background = data[background_idx]
 background = (background-np.mean(background,axis=0)) / np.std(background,axis=0) # standardize the dataset
 
 #%% running contrastive PCA
+sns.set_style("ticks")
+sns.set_context("notebook")
 
+style.use('dark_background')
 mdl = contrastive.CPCA()
-projected_data = mdl.fit_transform(target, background, plot=True, active_labels=sub_group_labels)
+projected_data = mdl.fit_transform(target, background, plot=True,colors=['w','r'], active_labels=sub_group_labels)
+
+#%% running ncPCA just for the intersect basis
+
+sub_group_labels= np.array(sub_group_labels)
+a = np.where(sub_group_labels == 0)
+b = np.where(sub_group_labels == 1)
+
+sns.set_style("ticks")
+sns.set_context("talk")
+style.use('dark_background')
+
+#X,S = ncPCA_mdl.ncPCA_orth(background,target)
+#X, S = ncPCA(background, target)
+
+#plotting ncPCA
+#target_projected = np.dot(target,X[:,:2])
+
+
+figure()
+ncPCA_mdl = ncPCA(basis_type='intersect')
+ncPCA_mdl.fit(background,target)
+target_projected = ncPCA_mdl.N2_scores_
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
+scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+xlabel('ncPC1')
+ylabel('ncPC2')
+plt.legend()
 
 #%% running and plotting ncPCA
 
@@ -65,6 +95,7 @@ b = np.where(sub_group_labels == 1)
 
 sns.set_style("ticks")
 sns.set_context("notebook")
+style.use('dark_background')
 
 #X,S = ncPCA_mdl.ncPCA_orth(background,target)
 #X, S = ncPCA(background, target)
@@ -72,14 +103,14 @@ sns.set_context("notebook")
 #plotting ncPCA
 #target_projected = np.dot(target,X[:,:2])
 
-figure()
 
+figure()
 ncPCA_mdl = ncPCA(basis_type='all')
 ncPCA_mdl.fit(background,target)
 target_projected = ncPCA_mdl.N2_scores_
 
 subplot(1,3,1,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
 scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
 xlabel('ncPC1')
 ylabel('ncPC2')
@@ -91,7 +122,7 @@ ncPCA_mdl.fit(background,target)
 target_projected = ncPCA_mdl.N2_scores_
 
 subplot(1,3,2,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
 scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
 xlabel('ncPC1')
 title('union')
@@ -101,24 +132,24 @@ ncPCA_mdl.fit(background,target)
 target_projected = ncPCA_mdl.N2_scores_
 
 subplot(1,3,3,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'k',alpha=0.7)
+scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
 scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
 xlabel('ncPC1')
 title('intersect')
 
-#%% testing the sorting
-test = ncPCA_mdl.ncPCA_values_null_
-# test2 = np.vstack(test).T
-# test3 = np.sort(test2,axis=1)
-color2use = cm.bwr(np.linspace(0,1,num=test.shape[1]))
+# #%% testing the sorting
+# test = ncPCA_mdl.ncPCA_values_null_
+# # test2 = np.vstack(test).T
+# # test3 = np.sort(test2,axis=1)
+# color2use = cm.bwr(np.linspace(0,1,num=test.shape[1]))
 
-figure()
-for a in np.arange(test.shape[1]):
-     plot(test[:,a],color=color2use[a,:])
-plot(ncPCA_mdl.ncPCs_values_,color='k',label='real data')
-legend()
-xlabel('ncPCs')
-ylabel('ncPCA values')
-#xlim((-1,10))
-#ylim((0.9,1.1))
+# figure()
+# for a in np.arange(test.shape[1]):
+#      plot(test[:,a],color=color2use[a,:])
+# plot(ncPCA_mdl.ncPCs_values_,color='k',label='real data')
+# legend()
+# xlabel('ncPCs')
+# ylabel('ncPCA values')
+# #xlim((-1,10))
+# #ylim((0.9,1.1))
 #%% 
