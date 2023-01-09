@@ -68,72 +68,47 @@ t_stop = time.time()
 # same method of binning through a loop in the cells, but for static gratings
 spikes_binned_sg = np.empty((len(sg_intervals.values),len(spikes_times.data)))
 bins_sg = sg_intervals.values.flatten()
+
 for aa in np.arange(len(spikes_times.data)):
     tmp = np.array(np.histogram(spikes_times.data[aa].index.values,bins_sg))
     spikes_binned_sg[:,aa] = tmp[0][np.arange(0,tmp[0].shape[0],2)]
 
-# getting labels
-sg_labels = df_stim_sg.stimulus_condition_id.values
-ns_labels = df_stim_ns.stimulus_condition_id.values
-
-#%% performing prediction
 array_of_ba = spikes_info["ecephys_structure_acronym"].unique();
-scores_ns = np.empty((5,len(array_of_ba)))
-scores_sg = np.empty((5,len(array_of_ba)))
 
-spikes_zsc_ns = zscore(spikes_binned_ns) #remove this later and update the variables name accordingly
+spikes_zsc_ns = zscore(spikes_binned_ns)
 spikes_zsc_sg = zscore(spikes_binned_sg)
 
 min_n_cell = 50
-kcv = KFold()  # cross-validation method
-# %% getting ncPCA and cPCA loadings
+brain_area_dict = {}
 
-# fw ns and bw ns cPCA loadings, ns PCA loadings and fw ns cPCA loadings
-brain_area_dict = {};
-# array_of_ba = ['LGd','VISp','VISrl','VISpm'] #we are supposed to be using the array_of_ba identified on the cell before
-
+#%% getting ncPCA and cPCA loadings
 for ba_name in array_of_ba:
     units_idx = spikes_info["ecephys_structure_acronym"] == ba_name
 
     if sum(units_idx.values) >= min_n_cell:
+        
+        X_train_ns, X_test_ns = train_test_split(spikes_zsc_ns, train_size=0.5)
+        X_train_sg, _ = train_test_split(spikes_zsc_sg, train_size=0.5)
 
-        # declaring variables before
-        data_PCA_ns = []
+        # zeroing any cell that was nan (i.e. no activity)
+        X_train_ns[np.isnan(X_train_ns)] = 0
+        X_test_ns[np.isnan(X_test_ns)] = 0
+        X_train_sg[np.isnan(X_train_sg)] = 0
+
+        # ncPCA loadings
+        ncPCA_mdl = ncPCA(basis_type='intersect', Nshuffle=10000)
+        ncPCA_mdl.fit(X_train_sg, X_train_ns)
+        X_fw_ns = ncPCA_mdl.loadings_
         data_ncPCA_fw_ns = []
+        data_ncPCA_fw_ns = np.dot(X_test_ns, X_fw_ns)
 
-        ### This is where the cross validation starts
-        # first we set up the train and test set for both datasets
-        for train_ind, test_ind in kcv.split(spikes_zsc_ns):
-            train_ind = train_ind.reshape(train_ind.shape[0], 1)
-            test_ind = test_ind.reshape(test_ind.shape[0], 1)
-            train_ns, test_ns = zscore(spikes_zsc_ns[train_ind, units_idx]), zscore(spikes_zsc_ns[test_ind, units_idx])
-            train_sg, test_sg = zscore(spikes_zsc_sg[train_ind, units_idx]), zscore(spikes_zsc_sg[test_ind, units_idx])
+        # PCA loadings
+        _, _, Vns = np.linalg.svd(X_train_ns, full_matrices=False)
+        data_PCA_ns = []
+        data_PCA_ns = np.dot(X_test_ns, Vns.T)
 
-
-            # zeroing any cell that was nan (i.e. no activity)
-            train_ns[np.isnan(train_ns)] = 0
-            test_ns[np.isnan(test_ns)] = 0
-            train_sg[np.isnan(train_sg)] = 0
-            test_sg[np.isnan(test_sg)] = 0
-
-            """ This block will do ncPCA """
-            # fitting ncPCA to train set
-            ncPCA_mdl = ncPCA(basis_type='intersect', Nshuffle=10000)
-            ncPCA_mdl.fit(train_sg, train_ns)
-
-            X_fw_ns = ncPCA_mdl.loadings_
-            data_ncPCA_fw_ns = np.dot(test_ns, X_fw_ns)
-
-            """ This block will calculate the scores for regular PCA"""
-            # the PCs for prediction also need to be cross validated
-            _, _, Vns = np.linalg.svd(train_ns, full_matrices=False)
-            data_PCA_ns = np.dot(test_ns, Vns.T)
-
-
-        # saving projected data
         brain_area_dict['data_ncPCA_fw_ns_' + ba_name] = data_ncPCA_fw_ns
         brain_area_dict['data_PCA_ns_' + ba_name] = data_PCA_ns
-
 
 #cosine similarity
 def cosine_similarity(vec1, vec2):
