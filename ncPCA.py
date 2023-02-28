@@ -338,7 +338,7 @@ class ncPCA():
         self.normalize_flag = normalize_flag
         self.basis_type = basis_type
         self.alpha_null = alpha_null
-        self.cutoff=0.995
+        self.cutoff=0.9995
         
     #%% write a function to generate data that can only be captured by ncPCA
     def generate_dataset(self,nsamples=10000,ntargets=100,high_var_rank=2,low_var_rank=2):
@@ -426,9 +426,14 @@ class ncPCA():
                 warnings.warn("N2 was not normalized properly - normalizing now")
                 N2 = N2_temp
         
+        #covariance matrices
+        N1N1 = np.dot(N1.T,N1)
+        N2N2 = np.dot(N2.T,N2)
+        
+        
         #SVD (or PCA) on N1 and N2
-        _,S1,V1 = np.linalg.svd(N1,full_matrices = False)
-        _,S2,V2 = np.linalg.svd(N2,full_matrices = False)
+        _,S1,V1 = np.linalg.svd(N1N1,full_matrices = False)
+        _,S2,V2 = np.linalg.svd(N2N2,full_matrices = False)
         
         # discard PCs that cumulatively account for less than 1% of variance, i.e.
         # rank-deficient dimensions
@@ -436,18 +441,26 @@ class ncPCA():
         S2_diagonal = S2
         
         #cumulative variance
-        cumvar_1 = np.divide(np.cumsum(S1_diagonal),np.sum(S1_diagonal))
-        cumvar_2 = np.divide(np.cumsum(S2_diagonal),np.sum(S2_diagonal))
+        #cumvar_1 = np.divide(np.cumsum(S1_diagonal),np.sum(S1_diagonal))
+        #cumvar_2 = np.divide(np.cumsum(S2_diagonal),np.sum(S2_diagonal))
         
         #picking how many PCs to keep
-        max_1 = np.where(cumvar_1 < cutoff)
-        max_2 = np.where(cumvar_2 < cutoff)
+        #max_1 = np.where(cumvar_1 < cutoff)
+        #max_2 = np.where(cumvar_2 < cutoff)
+        
+        
+        #V1_hat = V1[max_1[0],:];
+        #V2_hat = V2[max_2[0],:];
+        
+        # Picking based on rank (eps)
+        rank1 = np.linalg.matrix_rank(N1N1)
+        rank2 = np.linalg.matrix_rank(N1N1)
+        
+        V1_hat = V1[np.arange(rank1),:]
+        V2_hat = V2[np.arange(rank2),:]
         
         # Zassenhaus algorithm to find shared basis for N1 and N2
         # https://en.wikipedia.org/wiki/Zassenhaus_algorithm
-        V1_hat = V1[max_1[0],:];
-        V2_hat = V2[max_2[0],:];
-        
         #HAVE TO MAKE SURE THIS IS GETTING SUM AND INTERCEPT (JUST GETTING INTERCEPT)
         N_dim = V1.shape[1]
         V1_cat = np.concatenate((V1_hat,V1_hat),axis=1)
@@ -494,14 +507,10 @@ class ncPCA():
             
             
             J = LA.orth(basis_mat2) #orthonormal shared basis for Ns and Nw
+            #J = basis_mat2
             k = J.shape[1]
             
             ## Calculating ncPCA below
-            
-            #covariance matrices
-            N1N1 = np.dot(N1.T,N1)
-            N2N2 = np.dot(N2.T,N2)
-            
             
             ######### Iteratively take out the ncPCs by deflating J
             n_basis = J.shape[1]
