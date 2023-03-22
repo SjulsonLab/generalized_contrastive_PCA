@@ -170,7 +170,7 @@ def cPCA(background,foreground,n_components=2,alpha=1):
     eig_idx = eig_idx[np.argsort(-w[eig_idx])]
     
     cPCs = v[:,eig_idx]
-    return cPCs
+    return cPCs,w,eig_idx
 
 # old ncPCA code    
 def ncPCA_old(self,N1,N2):
