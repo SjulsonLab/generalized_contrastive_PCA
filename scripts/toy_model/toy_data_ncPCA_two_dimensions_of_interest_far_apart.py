@@ -38,14 +38,17 @@ pc_num3 = 75
 
 #background data
 temp_S = np.linspace(1,stop=N_features,num=N_features) #variance of background activity, decays in 1/f
-S_bg   = 1/temp_S
-#S_bg   = -1*np.arange(len(temp_S))+100.1
+# S_bg   = 1/temp_S
+S_bg   = -1*np.arange(len(temp_S))+100.1
+# S_bg   = np.ones(len(temp_S))+10
 
 #foreground data, where we want to compare the change to background
 #delta_var = np.random.randn(N_features)/100 #how much variance to vary by default, we are doing a normali distribution of 1% change in the SD
 #S_fg      = S_bg*(1+delta_var)
 S_fg = S_bg.copy()
 S_fg[0] = S_bg[0]*1.03;
+S_fg[2] = S_bg[2]*1.04;
+S_fg[1] = S_bg[1]*1.02;
 S_fg[10] = S_bg[10]*1.07;
 
 S_fg[pc_num1] = S_fg[pc_num1]*(1.05)
@@ -95,7 +98,7 @@ np.random.seed(0) # for reproducibility
 # from CPCA toy dataset
 # In A there are four clusters.
 N = 400; D = 30; gap=1.5
-scaling = 0.5;
+scaling = 1;
 rotation = ortho_group.rvs(dim=D)
 
 target_ = np.zeros((N, D))
@@ -107,10 +110,10 @@ target_[0:100, 20:30] = np.random.normal(-gap,1,(100,10))
 target_[100:200, 10:20] = np.random.normal(-gap,1,(100,10))
 target_[100:200, 20:30] = np.random.normal(gap,1,(100,10))
 # group 3
-target_[200:300, 10:20] = np.random.normal(2*gap,1,(100,10))*scaling
+target_[200:300, 10:20] = np.random.normal(2*gap,1,(100,10))
 target_[200:300, 20:30] = np.random.normal(-gap,1,(100,10))*scaling
 # group 4
-target_[300:400, 10:20] = np.random.normal(2*gap,1,(100,10))*scaling
+target_[300:400, 10:20] = np.random.normal(2*gap,1,(100,10))
 target_[300:400, 20:30] = np.random.normal(gap,1,(100,10))*scaling
 target_ = target_.dot(rotation)
 
@@ -119,27 +122,41 @@ sub_group_labels_ = [0]*100+[1]*100+[2]*100+[3]*100
 background_ = np.zeros((N, D))
 background_[:,0:10] = np.random.normal(0,10,(N,10))
 background_[0:200,10:20] = np.random.normal(0,3,(int(N/2),10))
-background_[0:200,20:30] = np.random.normal(0,1,(int(N/2),10))
-background_[200:400,10:20] = np.random.normal(0,3,(int(N/2),10))*scaling
-background_[200:400,20:30] = np.random.normal(0,1,(int(N/2),10))*scaling
+background_[0:200,20:30] = np.random.normal(0,1,(int(N/2),10))*scaling*2
+background_[200:400,10:20] = np.random.normal(0,3,(int(N/2),10))
+background_[200:400,20:30] = np.random.normal(0,1,(int(N/2),10))*scaling*2
 background_ = background_.dot(rotation)
 
 #% testing the model above
 
-alpha2use = 2.73
+alpha2use = 7.4
 
 #fitting cPCA
-cPCs_all = cPCA(background_,target_,alpha=alpha2use,n_components=target_.shape[1])
+cPCs_all,w,eigidx = cPCA(background_,target_,alpha=alpha2use,n_components=target_.shape[1])
 
 #fitting ncPCA
 mdl = ncPCA(basis_type='intersect',normalize_flag=False)
 mdl.fit(background_,target_)
 ncPCs_all = mdl.loadings_
 
+
+#projecting
+cpcs_proj = target_.dot(cPCs_all[:,:2])
+ncpcs_proj = target_.dot(ncPCs_all[:,:2])
+
+#plotting
 figure()
-scatter(target_.dot(cPCs_all[:,0]),target_.dot(cPCs_all[:,1]),label = 'cPCA')
-scatter(target_.dot(ncPCs_all[:,0]),target_.dot(ncPCs_all[:,1]),label = 'ncPCA')
-legend()
+subplot(1,2,1)
+scatter(cpcs_proj[0:100,0],cpcs_proj[0:100, 1],c='b')
+scatter(cpcs_proj[100:200,0],cpcs_proj[100:200, 1],c='r')
+scatter(cpcs_proj[200:300,0],cpcs_proj[100:200, 1],c='g')
+scatter(cpcs_proj[300:400,0],cpcs_proj[300:400, 1],c='k')
+
+subplot(1,2,2)
+scatter(ncpcs_proj[0:100,0],ncpcs_proj[0:100, 1],c='b')
+scatter(ncpcs_proj[100:200,0],ncpcs_proj[100:200, 1],c='r')
+scatter(ncpcs_proj[200:300,0],ncpcs_proj[100:200, 1],c='g')
+scatter(ncpcs_proj[300:400,0],ncpcs_proj[300:400, 1],c='k')
 """
 #%% reconstruct data
 
@@ -192,21 +209,31 @@ tight_layout()
 
 #%% run multiple alphas
 
-alphas_vec = np.linspace(0.2,4,num=50)
+alphas_vec = np.linspace(0.2,1.5,num=50)
 cPC1st = []
 cPC2nd = []
+cPC3rd = []
+cPC4th = []
 for alpha in alphas_vec:
     cPCs_all,w,eigidx = cPCA(data_bg,data_fg,alpha=alpha,n_components=len(V))
     cPCs_corr = np.abs(np.corrcoef(V.T,cPCs_all[:,0])[-1,:len(cPCs_all)])
     cPC1st.append(np.argmax(cPCs_corr))
     cPCs_corr = np.abs(np.corrcoef(V.T,cPCs_all[:,1])[-1,:len(cPCs_all)])
     cPC2nd.append(np.argmax(cPCs_corr))
+    cPCs_corr = np.abs(np.corrcoef(V.T,cPCs_all[:,2])[-1,:len(cPCs_all)])
+    cPC3rd.append(np.argmax(cPCs_corr))
+    cPCs_corr = np.abs(np.corrcoef(V.T,cPCs_all[:,3])[-1,:len(cPCs_all)])
+    cPC4th.append(np.argmax(cPCs_corr))
     
 figure()
 scatter(alphas_vec,cPC1st,alpha=0.5,label='1st cPC')
 scatter(alphas_vec,cPC2nd,alpha=0.5,label='2nd cPC')
+scatter(alphas_vec,cPC3rd,alpha=0.5,label='3rd cPC')
+scatter(alphas_vec,cPC4th,alpha=0.5,label='4th cPC')
 plot(alphas_vec,np.ones(len(alphas_vec))*10,'r--',alpha=0.4,label='dimensions of interest')
 plot(alphas_vec,np.ones(len(alphas_vec))*pc_num2,'r--',alpha=0.4)
+plot(alphas_vec,np.ones(len(alphas_vec))*75,'r--',alpha=0.4,label='dimensions of interest')
+plot(alphas_vec,np.ones(len(alphas_vec))*41,'r--',alpha=0.4,label='dimensions of interest')
 xlabel('alpha values')
 ylabel('Recovered dim. from model')
 legend()
@@ -224,10 +251,10 @@ newalpha = np.tile(alphas_vec,100)
 newalpha.resize((100,50))
 figure()
 cpc_eq = SFG-np.multiply(newalpha.T,SBG)
-imshow(cpc_eq,extent=[1, 100, alphas_vec[0], alphas_vec[-1]],aspect="auto")
+imshow(cpc_eq,extent=[1, 100, alphas_vec[-1],alphas_vec[0]],aspect="auto")
 clim((-0.1,0.050))
 
 figure()
 cpc_eq = SFG-np.multiply(newalpha.T,SBG)
-imshow(zscore(cpc_eq.T).T,extent=[1, 100, alphas_vec[0], alphas_vec[-1]],aspect="auto")
+imshow(zscore(cpc_eq.T).T,extent=[1, 100, alphas_vec[-1],alphas_vec[0]],aspect="auto")
 clim((-0.5,0.5))
