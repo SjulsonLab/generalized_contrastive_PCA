@@ -160,9 +160,11 @@ def cPCA(background,foreground,n_components=2,alpha=1):
     import numpy as np
     import numpy.linalg as LA
     
+    zbackground = (background - background.mean(axis=0) )/ background.std(axis=0)
+    zforeground = (foreground - foreground.mean(axis=0) )/ foreground.std(axis=0)
     #calculating covariance of the data, it's assumed the data is centered and scaled
-    bg_cov = background.T.dot(background)
-    fg_cov = foreground.T.dot(foreground)
+    bg_cov = zbackground.T.dot(zbackground)/(zbackground.shape[0]-1)
+    fg_cov = zforeground.T.dot(zforeground)/(zforeground.shape[0]-1)
     
     sigma = fg_cov - alpha*bg_cov
     w, v = LA.eig(sigma)

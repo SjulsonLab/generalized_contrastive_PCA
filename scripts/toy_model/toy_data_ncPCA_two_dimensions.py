@@ -20,18 +20,18 @@ from scipy.stats import zscore
 import sys
 import seaborn as sns
 
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir
+repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
 sys.path.append(repo_dir)
 from ncPCA import ncPCA
 from ncPCA import cPCA
-from project_utils import cosine_similarity_multiple_vectors
+from ncPCA_project_utils import cosine_similarity_multiple_vectors
 
 sns.set_style("whitegrid")
 sns.set_context("talk")
 #variables
-# N_times    = 1000 #number of observations
+N_samples  = 1000 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
-pc_change  = [0,27] #pcs that are going to be changed in variance
+pc_change  = [0,28] #pcs that are going to be changed in variance
 
 #%% generating toy data with linear decay
 
@@ -47,11 +47,12 @@ S_fg = S_bg.copy()+0.02
 
 #injecting variance in the data
 S_fg[pc_change[0]] = S_fg[pc_change[0]]*1.05;
-S_fg[pc_change[1]] = S_fg[pc_change[1]]*1.35;
+S_fg[pc_change[1]] = S_fg[pc_change[1]]*1.30;
 
 #S_bg[pc_num] = 0
 
 # generating random orthogonal loadings
+U = orth(np.random.randn(N_samples,N_features))
 V = orth(np.random.randn(N_features,N_features))
 
 plt.figure()
@@ -64,15 +65,16 @@ plt.tight_layout()
 #figure;plot((S_bg-S_fg)/(S_bg+S_fg))
 #%% reconstruct data
 
-data_bg = np.linalg.multi_dot((V,np.diag(S_bg),V.T));
-data_fg = np.linalg.multi_dot((V,np.diag(S_fg),V.T));
+data_bg = np.linalg.multi_dot((U,np.diag(S_bg),V.T));
+data_fg = np.linalg.multi_dot((U,np.diag(S_fg),V.T));
 
 
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
 
-cPCs_all,_,_ = cPCA(data_bg,data_fg,n_components=len(V),alpha=1.1)
+cPCs_all,_,_ = cPCA(data_bg,data_fg,n_components=len(V),alpha=1)
+
 """
 mdl = ncPCA(basis_type='union',normalize_flag=False)
 mdl.fit(data_bg, data_fg)
@@ -112,15 +114,15 @@ for alpha in alphas_vec:
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,1]))
     cPC2nd.append(np.argmax(cPCs_cossim))
     
-figure()
-scatter(alphas_vec,cPC1st,color='red',alpha=0.5,label='1st cPC')
-scatter(alphas_vec,cPC2nd,color='green',alpha=0.5,label='2nd cPC')
-plot(alphas_vec,np.ones(len(alphas_vec))*pc_change[0],'k--',alpha=0.4,label='dimensions of interest')
-plot(alphas_vec,np.ones(len(alphas_vec))*pc_change[1],'k--',alpha=0.4)
-xlabel('alpha values')
-ylabel('Recovered dim. from model')
-legend()
-tight_layout()
+plt.figure()
+plt.scatter(alphas_vec,cPC1st,color='red',alpha=0.5,label='1st cPC')
+plt.scatter(alphas_vec,cPC2nd,color='green',alpha=0.5,label='2nd cPC')
+plt.plot(alphas_vec,np.ones(len(alphas_vec))*pc_change[0],'k--',alpha=0.4,label='dimensions of interest')
+plt.plot(alphas_vec,np.ones(len(alphas_vec))*pc_change[1],'k--',alpha=0.4)
+plt.xlabel('alpha values')
+plt.ylabel('Recovered dim. from model')
+plt.legend()
+plt.tight_layout()
 
 #%% plot subtracting the eigenspectrum
 
@@ -135,6 +137,7 @@ SBG.resize((len(alphas_vec),N_features))
 
 newalpha = np.tile(alphas_vec,N_features)
 newalpha.resize((N_features,len(alphas_vec)))
-figure()
+plt.figure()
 cpc_eq = SFG-np.multiply(newalpha.T,SBG)
-plot(cpc_eq[np.arange(0,25,5),:].T,color='k')
+plt.plot(cpc_eq[np.arange(0,25,5),:].T)
+plt.grid()
