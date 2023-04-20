@@ -125,7 +125,7 @@ def cosine_similarity_multiple_vectors(A,B):
             
     return cos_sim
 
-
+# adapted from abid et al., 2019
 def resize_and_crop(img, size=(100, 100), crop_type='middle'):
     # ancillary function to get noisy mnist dataset
 
