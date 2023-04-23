@@ -174,6 +174,30 @@ def cPCA(background,foreground,n_components=2,alpha=1):
     cPCs = v[:,eig_idx]
     return cPCs,w,eig_idx
 
+def cPCApp(background,foreground,n_components=2):
+    """method to perform cPCA++ given that the implentation is to maximize
+    FG/BG, this is according to paper
+    """
+    import numpy as np
+    import numpy.linalg as LA
+    
+    #centering the data like they described, we will later add this as an option but the main zscoring will be done
+    zbackground = (background - background.mean(axis=0))
+    zforeground = (foreground - background.mean(axis=0))
+    
+    bg_cov = zbackground.T.dot(zbackground)/(zbackground.shape[0]-1)
+    fg_cov = zforeground.T.dot(zforeground)/(zforeground.shape[0]-1)
+    
+    sigma = np.dot(LA.inv(bg_cov),fg_cov)
+    
+    w, v = LA.eig(sigma)
+    eig_idx = np.argpartition(w, -n_components)[-n_components:]
+    eig_idx = eig_idx[np.argsort(-w[eig_idx])]
+    
+    cPCs = v[:,eig_idx]
+    return cPCs,w,eig_idx
+    
+
 # old ncPCA code    
 def ncPCA_old(self,N1,N2):
     Nshuffle = self.Nshuffle

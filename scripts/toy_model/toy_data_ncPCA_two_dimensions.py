@@ -31,7 +31,7 @@ sns.set_context("talk")
 #variables
 N_samples  = 1000 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
-pc_change  = [0,28] #pcs that are going to be changed in variance
+pc_change  = [0,20] #pcs that are going to be changed in variance
 
 #%% generating toy data with linear decay
 
@@ -47,7 +47,7 @@ S_fg = S_bg.copy()+0.02
 
 #injecting variance in the data
 S_fg[pc_change[0]] = S_fg[pc_change[0]]*1.05;
-S_fg[pc_change[1]] = S_fg[pc_change[1]]*1.30;
+S_fg[pc_change[1]] = S_fg[pc_change[1]]*1.35;
 
 #S_bg[pc_num] = 0
 
@@ -75,6 +75,7 @@ data_fg = np.linalg.multi_dot((U,np.diag(S_fg),V.T));
 
 cPCs_all,_,_ = cPCA(data_bg,data_fg,n_components=len(V),alpha=1)
 
+
 """
 mdl = ncPCA(basis_type='union',normalize_flag=False)
 mdl.fit(data_bg, data_fg)
@@ -101,15 +102,18 @@ plt.ylabel('Cos. similarity')
 plt.title('Modeled PCs captured by cPCA')
 plt.tight_layout()
 
+
 #%% make plot of multiple alpha and the distortion
 
 
 alphas_vec = np.linspace(0.8,1.3,num=25)
 cPC1st = []
 cPC2nd = []
+cPC1st_allV = []
 for alpha in alphas_vec:
     cPCs_all,w,eigidx = cPCA(data_bg,data_fg,alpha=alpha,n_components=len(V))
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
+    cPC1st_allV.append(cPCs_cossim)
     cPC1st.append(np.argmax(cPCs_cossim))
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,1]))
     cPC2nd.append(np.argmax(cPCs_cossim))
