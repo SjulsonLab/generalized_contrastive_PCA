@@ -188,7 +188,7 @@ def cPCApp(background,foreground,n_components=2):
     bg_cov = zbackground.T.dot(zbackground)/(zbackground.shape[0]-1)
     fg_cov = zforeground.T.dot(zforeground)/(zforeground.shape[0]-1)
     
-    sigma = np.dot(LA.inv(bg_cov),fg_cov)
+    sigma = np.dot(LA.pinv(bg_cov),fg_cov) #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
     
     w, v = LA.eig(sigma)
     eig_idx = np.argpartition(w, -n_components)[-n_components:]
@@ -387,7 +387,7 @@ class ncPCA():
         return N1,N2,W_hv,W_lv
     
     #%% new and orthogonal ncPCA
-    def fit(self,N1,N2): #old method that was called ncPCA_orth
+    def fit_old(self,N1,N2): #old method that was called ncPCA_orth
         
         """function [X,S_total] = ncPCA(Ns, Nw, Nshuffle)
         %
@@ -579,6 +579,145 @@ class ncPCA():
             S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
             
             self.number_of_shared_basis = basis_mat2.shape[1]
+            self.loadings_ = X
+            self.ncPCs_values_ = S_total
+            self.N1_scores_ = np.dot(N1,X)
+            self.N2_scores_ = np.dot(N2,X)
+            self.N1 = N1
+            self.N2 = N2
+            
+            # shuffling to define a null distribution
+            if Nshuffle>0:
+                self.null_distribution()
+    #%% new fit for ncPCA without using zassenhaus and just using union of basis
+    def fit(self,N1,N2): #old method that was called ncPCA_orth
+        
+        """method fitting ncPCA
+        Different from before, we get the union basis from PCA on FG+BG covariance, use the top PCs to continue with method
+        """
+        
+        #importing libraries
+        import numpy as np
+        from scipy import stats
+        from scipy import linalg as LA
+        import warnings
+    
+        #parameters
+        Nshuffle = self.Nshuffle
+        normalize_flag = self.normalize_flag
+        cutoff = self.cutoff #keeping this much variance with PCA
+        basis_type = self.basis_type
+        
+        #test that inputs are normalized
+        if N2.shape[1] != N1.shape[1]:
+            raise ValueError("N1 and N2 have different numbers of features")
+        
+        if normalize_flag:
+            N1_temp = np.divide(stats.zscore(N1),np.linalg.norm(stats.zscore(N1),axis=0))
+            N2_temp = np.divide(stats.zscore(N2),np.linalg.norm(stats.zscore(N2),axis=0))
+            
+            if np.sum(np.sum(np.square(N1_temp - N1)) > (0.01*np.square(N1_temp))):
+                warnings.warn("N1 was not normalized properly - normalizing now")
+                N1 = N1_temp
+            
+            if np.sum(np.sum(np.square(N2_temp - N2)) > (0.01*np.square(N2_temp))):
+                warnings.warn("N2 was not normalized properly - normalizing now")
+                N2 = N2_temp
+        
+        #covariance matrices
+        N1N1 = np.dot(N1.T,N1)
+        N2N2 = np.dot(N2.T,N2)
+        
+        
+        #SVD (or PCA) on N1 and N2
+        # _, S1, V1 = np.linalg.svd(np.concatenate((N2N2, N1N1), axis=0), full_matrices = False)
+        _, S1, V1 = np.linalg.svd(N2N2+N1N1, full_matrices = False)
+        
+        # discard PCs that cumulatively account for less than 1% of variance, i.e.
+        # rank-deficient dimensions
+        # S1_diagonal = S1
+
+        # cumulative variance
+        # cumvar_1 = np.divide(np.cumsum(S1_diagonal),np.sum(S1_diagonal))
+        # cumvar_2 = np.divide(np.cumsum(S2_diagonal),np.sum(S2_diagonal))
+
+        #
+        # picking how many PCs to keep
+        # max_1 = np.where(cumvar_1 < cutoff)
+        # max_2 = np.where(cumvar_2 < cutoff)
+
+        # V1_hat = V1[max_1[0],:];
+        # V2_hat = V2[max_2[0],:];
+
+        # Picking based on rank (eps)
+        # rank = np.linalg.matrix_rank(np.concatenate((N2N2, N1N1), axis=0))
+        rank = np.linalg.matrix_rank(N2N2+N1N1)
+
+        V1_hat = V1[:rank,:]
+        J = V1_hat.T
+
+        if J.size==0:
+            warnings.warn("No basis found in N1 and N2")
+            self.number_of_shared_basis = 0
+            self.loadings_ = np.nan
+            self.ncPCs_values_ = np.nan
+            self.N1_scores_ = np.nan
+            self.N2_scores_ = np.nan
+            self.N1 = np.nan
+            self.N2 = np.nan
+        else:
+            
+            
+            #J = LA.orth(basis_mat) #orthonormal shared basis for Ns and Nw
+            #J = basis_mat2
+            k = J.shape[1]
+            
+            ## Calculating ncPCA below
+            
+            """I think the loop below can be discarded with this new method
+            because the matrix are symetric then the eigenvectors should all be
+            orthogonal? I'm not sure about that"""
+            ######### Iteratively take out the ncPCs by deflating J
+            n_basis = J.shape[1]
+            Jnew = J
+            for aa in np.arange(n_basis):
+                B = LA.sqrtm(np.linalg.multi_dot((Jnew.T,N2N2+N1N1,Jnew)))
+                
+                #JBinv = np.linalg.lstsq(np.linalg.inv(J),np.linalg.inv(B))
+                #JBinv,_,_,_ = np.linalg.lstsq(J.T,np.linalg.inv(B))
+                #JBinv = np.linalg.solve(J.T,B.T)
+                #JBinv = np.dot(J,np.linalg.pinv(B))
+                
+                JBinv =  np.linalg.lstsq(Jnew.T, np.linalg.pinv(B))[0]
+                
+                # sort according to decreasing eigenvalue
+                D,y = np.linalg.eig(np.linalg.multi_dot((JBinv.T,N2N2-N1N1,JBinv)))
+                
+                Y = y[:,np.flip(np.argsort(D))]
+                
+                X_temp = np.dot(JBinv,Y[:,0]);
+                
+                if aa == 0:
+                    X = X_temp/np.linalg.norm(X_temp,axis=0)
+                else:
+                    temp_norm_ldgs = X_temp/np.linalg.norm(X_temp,axis=0)
+                    X = np.column_stack((X,temp_norm_ldgs))
+                
+                #deflating J
+                gamma = np.dot(np.linalg.pinv(B),Y[:,0])
+                gamma = gamma/np.linalg.norm(gamma) #normalizing by the norm
+                gamma_outer = np.outer(gamma,gamma.T)
+                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
+                Jnew = LA.orth(J_reduced)
+                #Jnew = J_reduced
+            ##########
+            
+            # getting top and bottom eigenvalues
+            Stop = np.linalg.multi_dot((X.T,N2N2-N1N1,X))
+            Sbot = np.linalg.multi_dot((X.T,N2N2+N1N1,X))
+            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
+            
+            self.number_of_shared_basis = J.shape[1]
             self.loadings_ = X
             self.ncPCs_values_ = S_total
             self.N1_scores_ = np.dot(N1,X)

@@ -31,7 +31,7 @@ sns.set_context("talk")
 #variables
 N_samples  = 1000 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
-pc_change  = [0,20] #pcs that are going to be changed in variance
+pc_change  = [0,25] #pcs that are going to be changed in variance
 
 #%% generating toy data with linear decay
 
@@ -43,7 +43,7 @@ S_bg = np.linspace(N_features,stop=1,num=N_features)/N_features
 #foreground data, where we want to compare the change to background
 #delta_var = np.random.randn(N_features)/100 #how much variance to vary by default, we are doing a normali distribution of 1% change in the SD
 #S_fg      = S_bg*(1+delta_var)
-S_fg = S_bg.copy()+0.02
+S_fg = S_bg.copy()+0.0002
 
 #injecting variance in the data
 S_fg[pc_change[0]] = S_fg[pc_change[0]]*1.05;
@@ -76,12 +76,12 @@ data_fg = np.linalg.multi_dot((U,np.diag(S_fg),V.T));
 cPCs_all,_,_ = cPCA(data_bg,data_fg,n_components=len(V),alpha=1)
 
 
-"""
-mdl = ncPCA(basis_type='union',normalize_flag=False)
+#"""
+mdl = ncPCA(normalize_flag=False)
 mdl.fit(data_bg, data_fg)
 ncPCs = mdl.loadings_[:,0]
 ncPCs_all = mdl.loadings_
-"""
+#"""
 #plot(np.corrcoef(cPCs_all.T,V[:,pc_num])[-1,:-1])
 #plot(np.corrcoef(ncPCs_all.T,V[:,pc_num])[-1,:-1])
 #% get the correlation of cPCs 1 to the modeled
@@ -90,8 +90,8 @@ ncPCs_all = mdl.loadings_
 # cPC2_corr = np.corrcoef(V.T,cPCs_all)[-2,:len(cPCs_all)]
 # ncPCs_corr = np.corrcoef(V.T,ncPCs)[-1,:len(ncPCs)]
 
-cPC1_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
-cPC2_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,1]))
+cPC1_cossim = np.abs(cosine_similarity_multiple_vectors(V, ncPCs_all[:,0]))
+cPC2_cossim = np.abs(cosine_similarity_multiple_vectors(V, ncPCs_all[:,1]))
 
 plt.figure()
 plt.plot(cPC1_cossim,color='red',label='1st cPC')
