@@ -22,8 +22,7 @@ import seaborn as sns
 
 repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
 sys.path.append(repo_dir)
-from ncPCA import ncPCA
-from ncPCA import cPCA
+from contrastive_methods import cPCA
 from ncPCA_project_utils import cosine_similarity_multiple_vectors
 
 sns.set_style("whitegrid")
@@ -43,7 +42,8 @@ S_bg = np.linspace(N_features,stop=1,num=N_features)/N_features
 #foreground data, where we want to compare the change to background
 #delta_var = np.random.randn(N_features)/100 #how much variance to vary by default, we are doing a normali distribution of 1% change in the SD
 #S_fg      = S_bg*(1+delta_var)
-S_fg = S_bg.copy()+0.0002
+# S_fg = S_bg.copy()+0.0002
+S_fg = S_bg.copy()
 
 #injecting variance in the data
 S_fg[pc_change[0]] = S_fg[pc_change[0]]*1.05;
@@ -72,11 +72,12 @@ data_fg = np.linalg.multi_dot((U,np.diag(S_fg),V.T));
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
+cPCA_mdl = cPCA();
+cPCA_mdl.fit(data_bg,data_fg)
 
-cPCs_all,_,_ = cPCA(data_bg,data_fg,n_components=len(V),alpha=1)
+cPCs_all = cPCA_mdl.loadings_
 
-
-#"""
+"""
 mdl = ncPCA(normalize_flag=False)
 mdl.fit(data_bg, data_fg)
 ncPCs = mdl.loadings_[:,0]

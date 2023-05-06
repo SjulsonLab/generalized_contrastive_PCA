@@ -18,7 +18,7 @@ background (BG), it's implemented here 1) contrastive PCA (FG - alpha*BG),
 # other stuff
 # put option to normalize the data or not
 
-
+import warnings
 #%% defining classes for each method
 
 #%% class for classical cPCA
@@ -37,6 +37,7 @@ class cPCA():
         """
         import numpy as np
         import numpy.linalg as LA
+        from scipy import stats
         
         #parameters
         Nshuffle       = self.Nshuffle
@@ -72,8 +73,7 @@ class cPCA():
         
     
         S_total = w[eig_idx]
-    
-        self.number_of_shared_basis = J.shape[1]
+
         self.loadings_ = X
         self.eigenvalues_ = S_total
         self.N1_scores_ = np.dot(N1,X)
@@ -107,68 +107,68 @@ class ratio_cPCA():
     #%% new fit for ncPCA without using zassenhaus and just using union of basis
     def fit(self,N1,N2): 
  
-    """method to perform ratio contrastive PCA FG/BG
-    """
-    import numpy as np
-    import numpy.linalg as LA
-    
-    #parameters
-    Nshuffle       = self.Nshuffle
-    normalize_flag = self.normalize_flag
-    
-    #test that inputs are normalized
-    if N2.shape[1] != N1.shape[1]:
-        raise ValueError("N1 and N2 have different numbers of features")
-    
-    if normalize_flag:
-        N1_temp = np.divide(stats.zscore(N1),LA.norm(stats.zscore(N1),axis=0))
-        N2_temp = np.divide(stats.zscore(N2),LA.norm(stats.zscore(N2),axis=0))
-        
-        if np.sum(np.sum(np.square(N1_temp - N1)) > (0.01*np.square(N1_temp))):
-            warnings.warn("N1 was not normalized properly - normalizing now")
-            N1 = N1_temp
-        
-        if np.sum(np.sum(np.square(N2_temp - N2)) > (0.01*np.square(N2_temp))):
-            warnings.warn("N2 was not normalized properly - normalizing now")
-            N2 = N2_temp
-    
-    #covariance matrices
-    N1N1 = np.dot(N1.T,N1)
-    N2N2 = np.dot(N2.T,N2)
-    
-    sigma = np.dot(LA.pinv(N2N2),N1N1) #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
-    
-    # getting eigenvalues and eigenvectors
-    w, v = LA.eig(sigma)
-    eig_idx = np.argsort(w)[::-1]
-    
-    X = v[:,eig_idx]
-    
-    S_total = w[eig_idx]
-
-    self.number_of_shared_basis = J.shape[1]
-    self.loadings_ = X
-    self.eigenvalues_ = S_total
-    self.N1_scores_ = np.dot(N1,X)
-    self.N2_scores_ = np.dot(N2,X)
-    self.N1 = N1
-    self.N2 = N2
-            
-    # shuffling to define a null distribution
-    if Nshuffle>0:
-        self.null_distribution()
-        
-    def transform(self,N1,N2):
+        """method to perform ratio contrastive PCA FG/BG
+        """
         import numpy as np
-        try:
-            X = self.loadings_
-            N1_transf = np.dot(N1,X)
-            N2_transf = np.dot(N2,X)
-            self.N1_transformed_ = N1_transf
-            self.N2_transformed_ = N2_transf
-        except:
-            print('Loadings not defined, you have to first fit the model')
+        import numpy.linalg as LA
+        from scipy import stats
+        
+        #parameters
+        Nshuffle       = self.Nshuffle
+        normalize_flag = self.normalize_flag
+        
+        #test that inputs are normalized
+        if N2.shape[1] != N1.shape[1]:
+            raise ValueError("N1 and N2 have different numbers of features")
+        
+        if normalize_flag:
+            N1_temp = np.divide(stats.zscore(N1),LA.norm(stats.zscore(N1),axis=0))
+            N2_temp = np.divide(stats.zscore(N2),LA.norm(stats.zscore(N2),axis=0))
+            
+            if np.sum(np.sum(np.square(N1_temp - N1)) > (0.01*np.square(N1_temp))):
+                warnings.warn("N1 was not normalized properly - normalizing now")
+                N1 = N1_temp
+            
+            if np.sum(np.sum(np.square(N2_temp - N2)) > (0.01*np.square(N2_temp))):
+                warnings.warn("N2 was not normalized properly - normalizing now")
+                N2 = N2_temp
+        
+        #covariance matrices
+        N1N1 = np.dot(N1.T,N1)
+        N2N2 = np.dot(N2.T,N2)
+        
+        sigma = np.dot(LA.pinv(N2N2),N1N1) #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
+        
+        # getting eigenvalues and eigenvectors
+        w, v = LA.eig(sigma)
+        eig_idx = np.argsort(w)[::-1]
+        
+        X = v[:,eig_idx]
+        
+        S_total = w[eig_idx]
     
+        self.loadings_ = X
+        self.eigenvalues_ = S_total
+        self.N1_scores_ = np.dot(N1,X)
+        self.N2_scores_ = np.dot(N2,X)
+        self.N1 = N1
+        self.N2 = N2
+                
+        # shuffling to define a null distribution
+        if Nshuffle>0:
+            self.null_distribution()
+            
+        def transform(self,N1,N2):
+            import numpy as np
+            try:
+                X = self.loadings_
+                N1_transf = np.dot(N1,X)
+                N2_transf = np.dot(N2,X)
+                self.N1_transformed_ = N1_transf
+                self.N2_transformed_ = N2_transf
+            except:
+                print('Loadings not defined, you have to first fit the model')
+        
 
 #%% making the class for normalized ncPCA - (FG-BG)/(BG)
 class ncPCA():
