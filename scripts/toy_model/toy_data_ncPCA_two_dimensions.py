@@ -28,22 +28,22 @@ from ncPCA_project_utils import cosine_similarity_multiple_vectors
 sns.set_style("whitegrid")
 sns.set_context("talk")
 #variables
-N_samples  = 1000 #number of observations
+N_samples  = 100 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
-pc_change  = [0,25] #pcs that are going to be changed in variance
+pc_change  = [0,28] #pcs that are going to be changed in variance
 
 #%% generating toy data with linear decay
 
 #background data
 temp_S = np.linspace(1,stop=N_features,num=N_features) #variance of background activity, decays in 1/f
 # S_bg   = 1/temp_S
-S_bg = np.linspace(N_features,stop=1,num=N_features)/N_features
+S_bg = np.linspace(0,stop=4,num=N_features)[::-1]
 
 #foreground data, where we want to compare the change to background
 #delta_var = np.random.randn(N_features)/100 #how much variance to vary by default, we are doing a normali distribution of 1% change in the SD
 #S_fg      = S_bg*(1+delta_var)
-# S_fg = S_bg.copy()+0.0002
-S_fg = S_bg.copy()
+S_fg = 1.1*S_bg.copy()
+# S_fg = S_bg.copy()
 
 #injecting variance in the data
 S_fg[pc_change[0]] = S_fg[pc_change[0]]*1.05;
@@ -62,18 +62,62 @@ plt.legend()
 plt.xlabel('PCs')
 plt.ylabel('Eigenvalues')
 plt.tight_layout()
-#figure;plot((S_bg-S_fg)/(S_bg+S_fg))
+
+#plot to check the cPCA
+plt.figure();plt.plot(np.arange(1,N_features+1),(S_fg-S_bg)/(S_bg))
+
+
+
 #%% reconstruct data
 
 data_bg = np.linalg.multi_dot((U,np.diag(S_bg),V.T));
 data_fg = np.linalg.multi_dot((U,np.diag(S_fg),V.T));
 
+cov_bg = data_bg.T.dot(data_bg)
+cov_fg = data_fg.T.dot(data_fg)
 
+#plot of covariance matrices
+plt.figure();
+plt.imshow(cov_bg,cmap='bwr')
+plt.title('background cov')
+plt.xlabel('features')
+plt.ylabel('features')
+
+plt.figure();
+plt.imshow(cov_fg,cmap='bwr')
+plt.title('foreground cov')
+plt.xlabel('features')
+plt.ylabel('features')
+
+#plot of
+# data_bg = np.linalg.multi_dot((U[:,pc_change],np.diag(S_bg[pc_change]),V.T[pc_change,:]));
+data_fg_increased = np.linalg.multi_dot((U[:,pc_change],np.diag(S_fg[pc_change]),V.T[pc_change,:]));
+cpca_cov = cov_fg - 1.25*cov_bg
+plt.figure();
+plt.imshow(cpca_cov,cmap='bwr')
+plt.title('cPCA cov')
+plt.xlabel('features')
+plt.ylabel('features')
+
+plt.figure();
+plt.imshow(data_fg_increased.T.dot(data_fg_increased),cmap='bwr')
+plt.title('increased dimensions cov')
+plt.xlabel('features')
+plt.ylabel('features')
+
+cPCA_mdl = cPCA(normalize_flag=False);
+cPCA_mdl.fit(data_bg,data_fg,alpha=1.25)
+cPCs_all = cPCA_mdl.loadings_*cPCA_mdl.eigenvalues_
+plt.figure();
+plt.imshow(cPCs_all[:,:2].dot(cPCs_all[:,:2].T),cmap='bwr')
+plt.title('top 2 cPCs cov')
+plt.xlabel('features')
+plt.ylabel('features')
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
-cPCA_mdl = cPCA();
-cPCA_mdl.fit(data_bg,data_fg)
+cPCA_mdl = cPCA(normalize_flag=False);
+cPCA_mdl.fit(data_bg,data_fg,alpha=1.25)
 
 cPCs_all = cPCA_mdl.loadings_
 
@@ -91,8 +135,8 @@ ncPCs_all = mdl.loadings_
 # cPC2_corr = np.corrcoef(V.T,cPCs_all)[-2,:len(cPCs_all)]
 # ncPCs_corr = np.corrcoef(V.T,ncPCs)[-1,:len(ncPCs)]
 
-cPC1_cossim = np.abs(cosine_similarity_multiple_vectors(V, ncPCs_all[:,0]))
-cPC2_cossim = np.abs(cosine_similarity_multiple_vectors(V, ncPCs_all[:,1]))
+cPC1_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
+cPC2_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,1]))
 
 plt.figure()
 plt.plot(cPC1_cossim,color='red',label='1st cPC')
@@ -106,13 +150,14 @@ plt.tight_layout()
 
 #%% make plot of multiple alpha and the distortion
 
-
-alphas_vec = np.linspace(0.8,1.3,num=25)
+cPCA_mdl = cPCA(normalize_flag=False);
+alphas_vec = np.linspace(0.8,1.6,num=25)
 cPC1st = []
 cPC2nd = []
 cPC1st_allV = []
 for alpha in alphas_vec:
-    cPCs_all,w,eigidx = cPCA(data_bg,data_fg,alpha=alpha,n_components=len(V))
+    cPCA_mdl.fit(data_bg,data_fg,alpha=alpha)
+    cPCs_all = cPCA_mdl.loadings_
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
     cPC1st_allV.append(cPCs_cossim)
     cPC1st.append(np.argmax(cPCs_cossim))
@@ -132,7 +177,7 @@ plt.tight_layout()
 #%% plot subtracting the eigenspectrum
 
 
-
+alphas2use = alphas_vec[np.arange(0,25,5)]
 sns.set_style("ticks")
 SFG = np.tile(S_fg,len(alphas_vec))
 SFG.resize((len(alphas_vec),N_features))
@@ -146,3 +191,10 @@ plt.figure()
 cpc_eq = SFG-np.multiply(newalpha.T,SBG)
 plt.plot(cpc_eq[np.arange(0,25,5),:].T)
 plt.grid()
+plt.xlabel('PCs')
+plt.ylabel('FG - alpha*BG')
+plt.text(7,0.7,'alpha = '+ str(alphas2use[0])[:4],color='tab:blue',rotation=340)
+plt.text(7,0.3,'alpha = '+ str(alphas2use[1])[:4],color='tab:orange',rotation=-11)
+plt.text(7,0.0,'alpha = '+ str(alphas2use[2])[:4],color='tab:green',rotation=1)
+plt.text(7,-0.5,'alpha = '+ str(alphas2use[3])[:4],color='tab:red',rotation=11)
+plt.text(7,-1,'alpha = '+ str(alphas2use[4])[:4],color='tab:purple',rotation=20)

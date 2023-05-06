@@ -25,13 +25,16 @@ import warnings
 
 class cPCA():
     """Class for cPCA with alpha as in the original implementation, FG - alpha*BG"""
-    def __init__(self,Nshuffle=0,normalize_flag=True,alpha=1,alpha_null=0.975):
+    
+    
+    """TO DO
+    [ ]add a method for doing fit for multiple alphas and returning multiple models """
+    def __init__(self,Nshuffle=0,normalize_flag=True,alpha_null=0.975):
         self.Nshuffle       = Nshuffle
         self.normalize_flag = normalize_flag
         self.alpha_null     = alpha_null
-        self.alpha          = alpha
         
-    def fit(self,N1,N2): 
+    def fit(self,N1,N2,alpha=1): 
  
         """ method to perform ratio contrastive PCA FG/BG
         """
@@ -42,7 +45,6 @@ class cPCA():
         #parameters
         Nshuffle       = self.Nshuffle
         normalize_flag = self.normalize_flag
-        alpha          = self.alpha
         #test that inputs are normalized
         if N2.shape[1] != N1.shape[1]:
             raise ValueError("N1 and N2 have different numbers of features")
