@@ -32,6 +32,7 @@ N_samples  = 100 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
 pc_change  = [0,28] #pcs that are going to be changed in variance
 
+np.random.default_rng(20237)
 #%% generating toy data with linear decay
 
 #background data
@@ -65,9 +66,6 @@ plt.tight_layout()
 
 #plot to check the cPCA
 plt.figure();plt.plot(np.arange(1,N_features+1),(S_fg-S_bg)/(S_bg))
-
-
-
 #%% reconstruct data
 
 data_bg = np.linalg.multi_dot((U,np.diag(S_bg),V.T));
@@ -155,12 +153,14 @@ alphas_vec = np.linspace(0.8,1.6,num=25)
 cPC1st = []
 cPC2nd = []
 cPC1st_allV = []
-for alpha in alphas_vec:
-    cPCA_mdl.fit(data_bg,data_fg,alpha=alpha)
+for a in alphas_vec:
+    cPCA_mdl.fit(data_bg,data_fg,alpha=a)
     cPCs_all = cPCA_mdl.loadings_
+    
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
     cPC1st_allV.append(cPCs_cossim)
     cPC1st.append(np.argmax(cPCs_cossim))
+    
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,1]))
     cPC2nd.append(np.argmax(cPCs_cossim))
     

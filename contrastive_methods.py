@@ -139,7 +139,7 @@ class ratio_cPCA():
         N1N1 = np.dot(N1.T,N1)
         N2N2 = np.dot(N2.T,N2)
         
-        sigma = np.dot(LA.pinv(N2N2),N1N1) #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
+        sigma = np.dot(LA.pinv(N1N1),N2N2) #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
         
         # getting eigenvalues and eigenvectors
         w, v = LA.eig(sigma)
