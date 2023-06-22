@@ -27,10 +27,11 @@ class gcPCA():
     
     """TO DO
     [ ]add a method for doing fit for multiple alphas and returning multiple models """
-    def __init__(self, method='v4', Nshuffle=0, normalize_flag=True, alpha_null=0.975,cond_number = 10**13):
+    def __init__(self, method='v4', Nshuffle=0, normalize_flag=True, alpha=1, alpha_null=0.975,cond_number = 10**13):
         self.method         = method
         self.Nshuffle       = Nshuffle
         self.normalize_flag = normalize_flag
+        self.alpha          = alpha
         self.alpha_null     = alpha_null
         self.cond_number    = cond_number
     
@@ -55,7 +56,7 @@ class gcPCA():
             self.Rb = Rb
         
         
-    def fit(self,Ra,Rb,alpha=1): 
+    def fit(self,Ra,Rb): 
         import numpy as np
         import numpy.linalg as LA
         
@@ -85,7 +86,7 @@ class gcPCA():
         
         #find the gcPCA loadings accord to method requested
         if method == 'v1': #original cPCA
-        
+            alpha = self.alpha
             sigma = RaRa - alpha*RbRb #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
         
             # getting eigenvalues and eigenvectors
@@ -132,9 +133,7 @@ class gcPCA():
                 
                 RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
                 
-            ## Calculating gcPCA below
-            ######### Iteratively take out the ncPCs by deflating B
-            n_basis = RbRb.shape[0]
+            # Calculating gcPCA below
             B = sqrtm(RbRb)
             BtRaRbB = LA.multi_dot((LA.inv(B).T,RaRa-RbRb,LA.inv(B)))
             
@@ -149,7 +148,8 @@ class gcPCA():
             S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
             
         elif method == 'v3.1': #this is (A-B)/B but with orthogonality constrain
-            from scipy.linalg import sqrtm
+            from scipy.linalg import sqrtm,orth
+            
             if LA.cond(RbRb) > self.cond_number:
                 warnings.warn("Rb is ill-conditioned, fixing it. " +
                               "Be aware that gcPCA values will be" +
@@ -161,25 +161,22 @@ class gcPCA():
                 
                 RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
                 
-            ## Calculating gcPCA below
-            ######### Iteratively take out the ncPCs by deflating B
+            # Calculating gcPCA below
+            # Iteratively take out the ncPCs by deflating basis
             n_basis = RbRb.shape[0]
-            B = sqrtm(RbRb)
-            BtRaRbB = LA.multi_dot((LA.inv(B).T,RaRa-RbRb,LA.inv(B)))
+
+            _, _, V = LA.svd(RbRb, full_matrices=False)
             
-            Bnew = B.copy()
-            BtRaRbBnew = BtRaRbB.copy()
-            RaRanew  = RaRa.copy()
-            RbRbnew  = RbRb.copy()
-            # Bident = np.eye(len(Bnew))
+            Jnew = V.T
             for aa in np.arange(n_basis):
-                
-                # find the eigenvalues and sort according to decreasing magnitude
-                D, y = LA.eig(BtRaRbBnew)
+                B = sqrtm(LA.multi_dot((Jnew.T, RbRb, Jnew)))
+
+                # find the eigenvalues and sort according to magnitude
+                JBinv = LA.lstsq(Jnew.T, LA.pinv(B))[0]
+                D, y = LA.eig(LA.multi_dot((JBinv.T, RaRa-RbRb, JBinv)))
                 Y = y[:, np.flip(np.argsort(D))]
 
-                # NEED TO UPDATE THIS FOR THE NEW VARIABLE
-                X_temp = np.dot(LA.inv(Bnew), Y[:, 0])
+                X_temp = np.dot(JBinv, Y[:,0]);
 
                 if aa == 0:
                     X = X_temp/LA.norm(X_temp, axis=0)
@@ -187,35 +184,78 @@ class gcPCA():
                     temp_norm_ldgs = X_temp/LA.norm(X_temp, axis=0)
                     X = np.column_stack((X, temp_norm_ldgs))
 
-                # deflating BtRaRbB
-                gamma = np.dot(LA.pinv(Bnew), Y[:, 0])
+                # deflating J
+                gamma = np.dot(LA.pinv(B), Y[:, 0])
                 gamma = gamma/LA.norm(gamma)  # normalizing by the norm
-                # q = np.dot(Bident,gamma)
-                gamma_outer = np.eye(len(gamma)) - np.outer(gamma, gamma.T)
+                gamma_outer = np.outer(gamma, gamma.T)
                 
-                # RbRbnew = RbRbnew - LA.multi_dot((gamma_outer, RbRbnew, gamma_outer))
-                # Bnew = sqrtm(RbRbnew)
-                # BtRaRbBnew =  LA.multi_dot((gamma_outer, BtRaRbBnew, gamma_outer))
+                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
+                Jnew = orth(J_reduced)
 
-                # BtRaRbBnew = BtRaRbBnew - LA.multi_dot((BtRaRbBnew,np.outer(gamma, gamma.T),BtRaRbBnew))/LA.multi_dot((gamma.T,BtRaRbBnew,gamma))
+            # getting top and bottom eigenvalues
+            Stop = LA.multi_dot((X.T, RaRa-RbRb, X))
+            Sbot = LA.multi_dot((X.T, RbRb, X))
+            S_total = np.divide(np.diagonal(Stop), np.diagonal(Sbot))
+              
+        elif method == 'v3.2':
+            if LA.cond(RbRb) > self.cond_number:
+                warnings.warn("Rb is ill-conditioned, fixing it. " +
+                              "Be aware that gcPCA values will be" +
+                              "slightly smaller")
+                w = LA.eigvals(RbRb)
+                w = w[np.argsort(w)[::-1]]
                 
-                "DEFLATE RA AND RB AND RECALCULATE EVERYTHING - this isn't working either"
-                RaRanew = LA.multi_dot(( RaRanew, gamma_outer))
-                RbRbnew = LA.multi_dot(( RbRbnew, gamma_outer))
+                alpha = w[0]/self.cond_number - w[-1]
                 
-                Bnew = sqrtm(RbRbnew)
-                BtRaRbBnew = LA.multi_dot((LA.inv(Bnew).T,RaRanew-RbRbnew,LA.inv(Bnew)))
+                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
                 
-                # Bident = np.dot(Bident,gamma_outer)
-                # BtRaRbBnew = LA.multi_dot((LA.inv(Bnew).T, RaRanew-RbRbnew, LA.inv(Bnew)))
-                ##########
-                                
+            # Calculating gcPCA below
+            iRbRaRb = np.dot(LA.inv(RbRb),RaRa-RbRb)
+            
+            D, x = LA.eig(iRbRaRb)
+            X = x[:, np.flip(np.argsort(D))]
+
             # getting top and bottom eigenvalues
             Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
             Sbot = LA.multi_dot((X.T,RbRb,X))
             S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
+
+        elif method == 'v3.3': # the orthogonal version
+            if LA.cond(RbRb) > self.cond_number:
+                warnings.warn("Rb is ill-conditioned, fixing it. " +
+                              "Be aware that gcPCA values will be" +
+                              "slightly smaller")
+                w = LA.eigvals(RbRb)
+                w = w[np.argsort(w)[::-1]]
                 
+                alpha = w[0]/self.cond_number - w[-1]
                 
+                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
+                
+            # Calculating gcPCA below
+            iRbRaRb = np.dot(LA.inv(RbRb),RaRa-RbRb)
+            
+            n_basis = iRbRaRb.shape[0]
+            iRbRaRbnew = iRbRaRb.copy()
+            
+            # BELOW WE HAVE TO DEFLATE AND DROP THE RANK OF THE VARIABLE GOING
+            # THROUGH THE EIGENVALUE
+            for aa in np.arange(n_basis):
+                D, y = LA.eig(iRbRaRbnew)
+                x_temp = y[:, np.flip(np.argsort(D))][0]
+
+                if aa == 0:
+                    X = x_temp
+                else:
+                    X = np.column_stack((X, x_temp))
+                
+                gamma = np.outer(x_temp,x_temp.T)
+                iRbRaRbnew = iRbRaRbnew - LA.multi_dot((gamma,iRbRaRbnew,gamma))
+            # getting top and bottom eigenvalues
+            Stop = LA.multi_dot((X.T, RaRa-RbRb, X))
+            Sbot = LA.multi_dot((X.T, RbRb, X))
+            S_total = np.divide(np.diagonal(Stop), np.diagonal(Sbot))
+            
         elif method == 'v4': #this is ncPCA index
             from scipy.linalg import sqrtm
             
@@ -246,21 +286,55 @@ class gcPCA():
             S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
             
         elif method == 'v4.1': #this is ncPCA index with orthogonality constrain
-            from scipy.linalg import sqrtm
+            from scipy.linalg import sqrtm,orth
             
-            RaRaRbRb = RaRa+RbRb
-            if LA.cond(RaRaRbRb) > self.cond_number:
-                warnings.warn("RaRa+RbRb is ill-conditioned, fixing it. " +
+            if LA.cond(RbRb) > self.cond_number:
+                warnings.warn("Rb is ill-conditioned, fixing it. " +
                               "Be aware that gcPCA values will be" +
                               "slightly smaller")
-                w = LA.eigvals(RaRaRbRb)
+                w = LA.eigvals(RbRb)
                 w = w[np.argsort(w)[::-1]]
                 
                 alpha = w[0]/self.cond_number - w[-1]
                 
-                RaRaRbRb = RaRaRbRb + np.eye(RaRaRbRb.shape[0])*alpha
+                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
                 
-                #not complete yet
+            # Calculating gcPCA below
+            # Iteratively take out the ncPCs by deflating basis
+            RaRaRbRb = RaRa+RbRb
+            n_basis = RaRaRbRb.shape[0]
+
+            _, _, V = LA.svd(RaRaRbRb, full_matrices=False)
+            
+            Jnew = V.T
+            for aa in np.arange(n_basis):
+                B = sqrtm(LA.multi_dot((Jnew.T, RaRaRbRb, Jnew)))
+
+                # find the eigenvalues and sort according to magnitude
+                JBinv = LA.lstsq(Jnew.T, LA.pinv(B))[0]
+                D, y = LA.eig(LA.multi_dot((JBinv.T, RaRa-RbRb, JBinv)))
+                Y = y[:, np.flip(np.argsort(D))]
+
+                X_temp = np.dot(JBinv, Y[:,0]);
+
+                if aa == 0:
+                    X = X_temp/LA.norm(X_temp, axis=0)
+                else:
+                    temp_norm_ldgs = X_temp/LA.norm(X_temp, axis=0)
+                    X = np.column_stack((X, temp_norm_ldgs))
+
+                # deflating J
+                gamma = np.dot(LA.pinv(B), Y[:, 0])
+                gamma = gamma/LA.norm(gamma)  # normalizing by the norm
+                gamma_outer = np.outer(gamma, gamma.T)
+                
+                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
+                Jnew = orth(J_reduced)
+
+            # getting top and bottom eigenvalues
+            Stop = LA.multi_dot((X.T, RaRa-RbRb, X))
+            Sbot = LA.multi_dot((X.T, RaRa+RbRb, X))
+            S_total = np.divide(np.diagonal(Stop), np.diagonal(Sbot))
                 
         self.loadings_ = X
         self.gcPCA_values_ = S_total

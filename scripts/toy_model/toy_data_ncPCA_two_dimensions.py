@@ -22,7 +22,7 @@ import seaborn as sns
 
 repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
 sys.path.append(repo_dir)
-from contrastive_methods import cPCA
+from contrastive_methods import gcPCA
 from ncPCA_project_utils import cosine_similarity_multiple_vectors
 
 sns.set_style("whitegrid")
@@ -38,7 +38,7 @@ np.random.default_rng(20237)
 #background data
 temp_S = np.linspace(1,stop=N_features,num=N_features) #variance of background activity, decays in 1/f
 # S_bg   = 1/temp_S
-S_bg = np.linspace(0,stop=4,num=N_features)[::-1]
+S_bg = np.linspace(0,stop=4,num=N_features)[::-1]+10**-4
 
 #foreground data, where we want to compare the change to background
 #delta_var = np.random.randn(N_features)/100 #how much variance to vary by default, we are doing a normali distribution of 1% change in the SD
@@ -103,9 +103,9 @@ plt.title('increased dimensions cov')
 plt.xlabel('features')
 plt.ylabel('features')
 
-cPCA_mdl = cPCA(normalize_flag=False);
-cPCA_mdl.fit(data_bg,data_fg,alpha=1.25)
-cPCs_all = cPCA_mdl.loadings_*cPCA_mdl.eigenvalues_
+gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
+gcPCA_mdl.fit(data_bg,data_fg)
+cPCs_all = gcPCA_mdl.loadings_*gcPCA_mdl.eigenvalues_
 plt.figure();
 plt.imshow(cPCs_all[:,:2].dot(cPCs_all[:,:2].T),cmap='bwr')
 plt.title('top 2 cPCs cov')
@@ -114,10 +114,10 @@ plt.ylabel('features')
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
-cPCA_mdl = cPCA(normalize_flag=False);
-cPCA_mdl.fit(data_bg,data_fg,alpha=1.25)
+gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
+gcPCA_mdl.fit(data_bg,data_fg)
 
-cPCs_all = cPCA_mdl.loadings_
+cPCs_all = gcPCA_mdl.loadings_
 
 """
 mdl = ncPCA(normalize_flag=False)
@@ -148,7 +148,7 @@ plt.tight_layout()
 
 #%% make plot of multiple alpha and the distortion
 
-cPCA_mdl = cPCA(normalize_flag=False);
+gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1)
 alphas_vec = np.linspace(0.8,1.6,num=25)
 cPC1st = []
 cPC2nd = []
