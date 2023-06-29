@@ -1,4 +1,4 @@
-function [B, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
+function [M, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
 
 % function [B, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
 %
@@ -121,17 +121,17 @@ disp(['Discarding ' num2str(n - k) ' low-variance dimensions']);
 NwNw = Nw'*Nw;
 NsNs = Ns'*Ns;
 
-B = sqrtm(J' * (NwNw + NsNs) * J);
+M = sqrtm(J' * (NwNw + NsNs) * J);
 
-JBinv = J / B;
+JMinv = J / M;
 
-[y, D] = eig(JBinv' * (NwNw - NsNs) * JBinv);
+[y, D] = eig(JMinv' * (NwNw - NsNs) * JMinv);
 
 % sort according to decreasing eigenvalue
 [D, sortidx] = sort(diag(D), 'descend');
 y = y(:, sortidx);
 
-X = normalize(JBinv * y, 'norm');
+X = normalize(JMinv * y, 'norm');
 
 %% sorting eigenvectors according to descending variance
 
@@ -182,9 +182,9 @@ B.sleep = Ns * X;
 B.awake = Nw * X;
 
 % extracting the diagonal weight matrix
-S.sleep = vecnorm(B.sleep)';
-S.awake = vecnorm(B.awake)';
+S.sleep = vecnorm(M.sleep)';
+S.awake = vecnorm(M.awake)';
 
 % normalizing the columns of the B's
-B.sleep = B.sleep * diag(1./S.sleep);
-B.awake = B.awake * diag(1./S.awake);
+M.sleep = M.sleep * diag(1./S.sleep);
+M.awake = M.awake * diag(1./S.awake);
