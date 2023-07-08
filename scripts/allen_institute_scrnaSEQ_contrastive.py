@@ -75,17 +75,17 @@ visp_count = temp_visp.T.values
 temp_alm = pd.read_csv(data_dir+'mouse_ALM_2018-06-14_exon-matrix.csv')
 alm_count = temp_alm.T.values
 
-temp_count = np.concatenate((visp_count,alm_count),axis=0)
+# temp_count = np.concatenate((visp_count,alm_count),axis=0)
 
 #reducing the number of feature to the 10k top variance features. This might be problematic
 # reduced_count,indexes = feature_reduction(temp_count, 10000)
-reduced_count,indexes = feature_reduction2(temp_count)
+# reduced_count,indexes = feature_reduction2(temp_count)
 
 # new_visp_count = reduced_count[:visp_count.shape[0],:]
 # new_alm_count  = reduced_count[visp_count.shape[0]:,:]
 
-cmdl = index_ncPCA()
-cmdl.fit(new_visp_count,new_alm_count)
+gcpca_mdl = gcPCA(method='v4.1')
+gcpca_mdl.fit(visp_count,alm_count)
 
 #%% post analysis of index ncPCA
 #get the name of the 
