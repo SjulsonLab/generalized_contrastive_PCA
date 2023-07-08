@@ -19,7 +19,7 @@ repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #re
 # repo_dir =  #repo dir in HPC
 
 sys.path.append(repo_dir)
-from contrastive_methods import index_ncPCA
+from contrastive_methods import gcPCA
 
 #%% important functions to preprocess the scrnaSeq
 
@@ -81,8 +81,8 @@ temp_count = np.concatenate((visp_count,alm_count),axis=0)
 # reduced_count,indexes = feature_reduction(temp_count, 10000)
 reduced_count,indexes = feature_reduction2(temp_count)
 
-new_visp_count = reduced_count[:visp_count.shape[0],:]
-new_alm_count  = reduced_count[visp_count.shape[0]:,:]
+# new_visp_count = reduced_count[:visp_count.shape[0],:]
+# new_alm_count  = reduced_count[visp_count.shape[0]:,:]
 
 cmdl = index_ncPCA()
 cmdl.fit(new_visp_count,new_alm_count)

@@ -36,7 +36,7 @@ np.random.default_rng(20237)
 #%% generating toy data with linear decay
 
 #background data
-temp_S = np.linspace(1,stop=N_features,num=N_features) #variance of background activity, decays in 1/f
+# temp_S = np.linspace(1,stop=N_features,num=N_features) #variance of background activity, decays in 1/f
 # S_bg   = 1/temp_S
 S_bg = np.linspace(0,stop=4,num=N_features)[::-1]+10**-4
 
@@ -88,14 +88,13 @@ plt.xlabel('features')
 plt.ylabel('features')
 
 #plot of
-# data_bg = np.linalg.multi_dot((U[:,pc_change],np.diag(S_bg[pc_change]),V.T[pc_change,:]));
-data_fg_increased = np.linalg.multi_dot((U[:,pc_change],np.diag(S_fg[pc_change]),V.T[pc_change,:]));
-cpca_cov = cov_fg - 1.25*cov_bg
-plt.figure();
-plt.imshow(cpca_cov,cmap='bwr')
-plt.title('cPCA cov')
-plt.xlabel('features')
-plt.ylabel('features')
+data_fg_increased = U[:,pc_change]*S_fg[pc_change]@V.T[pc_change,:];
+# cpca_cov = cov_fg - 1.25*cov_bg
+# plt.figure();
+# plt.imshow(cpca_cov,cmap='bwr')
+# plt.title('cPCA cov')
+# plt.xlabel('features')
+# plt.ylabel('features')
 
 plt.figure();
 plt.imshow(data_fg_increased.T.dot(data_fg_increased),cmap='bwr')
@@ -104,10 +103,10 @@ plt.xlabel('features')
 plt.ylabel('features')
 
 gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
-gcPCA_mdl.fit(data_bg,data_fg)
-cPCs_all = gcPCA_mdl.loadings_*gcPCA_mdl.eigenvalues_
+gcPCA_mdl.fit(data_fg,data_bg)
+cPCs_all = gcPCA_mdl.loadings_*gcPCA_mdl.gcPCA_values_
 plt.figure();
-plt.imshow(cPCs_all[:,:2].dot(cPCs_all[:,:2].T),cmap='bwr')
+plt.imshow(cPCs_all[:,:2]@cPCs_all[:,:2].T,cmap='bwr')
 plt.title('top 2 cPCs cov')
 plt.xlabel('features')
 plt.ylabel('features')
@@ -115,7 +114,7 @@ plt.ylabel('features')
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
 gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
-gcPCA_mdl.fit(data_bg,data_fg)
+gcPCA_mdl.fit(data_fg,data_bg)
 
 cPCs_all = gcPCA_mdl.loadings_
 
@@ -148,13 +147,14 @@ plt.tight_layout()
 
 #%% make plot of multiple alpha and the distortion
 
-gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1)
+
 alphas_vec = np.linspace(0.8,1.6,num=25)
 cPC1st = []
 cPC2nd = []
 cPC1st_allV = []
 for a in alphas_vec:
-    cPCA_mdl.fit(data_bg,data_fg,alpha=a)
+    cPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=a)
+    cPCA_mdl.fit(data_fg,data_bg)
     cPCs_all = cPCA_mdl.loadings_
     
     cPCs_cossim = np.abs(cosine_similarity_multiple_vectors(V, cPCs_all[:,0]))
@@ -175,7 +175,6 @@ plt.legend()
 plt.tight_layout()
 
 #%% plot subtracting the eigenspectrum
-
 
 alphas2use = alphas_vec[np.arange(0,25,5)]
 sns.set_style("ticks")

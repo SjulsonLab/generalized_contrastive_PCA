@@ -19,6 +19,8 @@ background (BG), it's implemented here 1) contrastive PCA (FG - alpha*BG),
 # put option to normalize the data or not
 
 import warnings
+import numpy as np
+import numpy.linalg as LA
 #%% defining classes for each method
 
 #%% class for generalized contrastive PCA
@@ -27,19 +29,18 @@ class gcPCA():
     
     """TO DO
     [ ]add a method for doing fit for multiple alphas and returning multiple models """
-    def __init__(self, method='v4', Nshuffle=0, normalize_flag=True, alpha=1, alpha_null=0.975,cond_number = 10**13):
+    def __init__(self, method='v4.1', Ncalc = np.inf, Nshuffle=0, normalize_flag=True, alpha=1, alpha_null=0.975,cond_number = 10**13):
         self.method         = method
         self.Nshuffle       = Nshuffle
         self.normalize_flag = normalize_flag
         self.alpha          = alpha
         self.alpha_null     = alpha_null
         self.cond_number    = cond_number
+        self.Ncalc          = Ncalc
     
     def normalize(self):
         """method to normalize data to have same norm"""
         from scipy import stats
-        import numpy as np
-        import numpy.linalg as LA
         
         Ra_temp = np.divide(stats.zscore(self.Ra),LA.norm(stats.zscore(self.Ra),axis=0))
         Rb_temp = np.divide(stats.zscore(self.Rb),LA.norm(stats.zscore(self.Rb),axis=0))
@@ -54,364 +55,175 @@ class gcPCA():
             warnings.warn("Rb was not normalized properly - normalizing now")
             Rb = Rb_temp
             self.Rb = Rb
+    
+    def inspect_inputs(self):
+        """Method to inspect the data for multiple criterias, as number of 
+        features, normalization and number of gcPCs possible to get vs
+        number of gcPCs requested by the user """
         
+        #test that inputs have the same number of inputs
+        if self.Ra.shape[1] != self.Rb.shape[1]:
+            raise ValueError("Ra and Rb have different numbers of features")
+        
+        #normalizing as to have same variance and norm
+        if self.normalize_flag:
+            self.normalize()
+
+        # discard dimensions if necessary
+        # whichever dataset has less datapoints dictate the amount of gcPCs
+        N_gcPCs = int(np.min((self.Ra.shape, self.Rb.shape)))
+        
+        # SVD on the combined dataset to discard dimensions with near-zero variance
+        RaRb = np.concatenate((self.Ra,self.Rb),axis=0)
+        _, Sab, V = LA.svd(RaRb,full_matrices=False)
+        tol  = max(RaRb.shape) * np.finfo(Sab.max()).eps
+        
+        if sum(Sab>tol) < N_gcPCs:
+            warnings.warn('Input data is rank-deficient! Discarding dimensions; cannot shuffle.')
+            N_gcPCs = sum(Sab>tol); # the new number of gcPCs
+            Nshuffle = 0;
+        
+        #setting number of gcPCs to return
+        if sum(np.char.equal(self.method,['v1','v2','v3','v4'])) & ~np.isinf(self.Ncalc):
+            warnings.warn('Ncalc is only relevant if using orthogonal gcPCA. Will calculate full set of gcPCs.')
+            print(str(N_gcPCs) + ' gcPCs will be returned.')
+        elif sum(np.char.equal(self.method,['v2.1','v3.1','v4.1'])):
+            N_gcPCs = int(np.min((self.Ncalc,N_gcPCs))) #either the requested by user or maximum rank there can be
+            print(str(N_gcPCs) + ' gcPCs will be returned.')
+        
+        J = V.T.copy()
+        self.N_gcPCs = N_gcPCs
+        self.Jorig   = J[:,:N_gcPCs]
         
     def fit(self,Ra,Rb): 
-        import numpy as np
-        import numpy.linalg as LA
+        from scipy.linalg import sqrtm
         
         #parameters
-        method_strings = np.array(['v1','v2','v3','v4'])
         method         = self.method
+        Ncalc          = self.Ncalc
         Nshuffle       = self.Nshuffle
-        normalize_flag = self.normalize_flag
+        normalize_flag = self.normalize_flag        
         
         #putting data into class
         self.Ra = Ra
         self.Rb = Rb
         
-        #test that inputs have the same number of inputs
-        if Ra.shape[1] != Rb.shape[1]:
-            raise ValueError("Ra and Rb have different numbers of features")
+        #inspecting whether the inputs are normalized and dimensionality to use
+        self.inspect_inputs()
+        Jorig = self.Jorig 
+        J = Jorig.copy() # J shrinks every round, but Jorig is the first-round's J
         
-        #normalizing as to have same norm
-        if normalize_flag:
-            self.normalize()
-            Ra = self.Ra
-            Rb = self.Rb
-        
+        #in orthogonal gcPCA, we interate multiple time
+        if sum(np.char.equal(method,['v2.1','v3.1','v4.1'])):
+            Niter = self.N_gcPCs
+        else:
+            Niter = 1    
+
         #covariance matrices
-        RaRa = Ra.T.dot(Ra)
-        RbRb = Rb.T.dot(Rb)
-        
-        #find the gcPCA loadings accord to method requested
+        RaRa = self.Ra.T.dot(self.Ra)
+        RbRb = self.Rb.T.dot(self.Rb)
+
+        # solving gcPCA
         if method == 'v1': #original cPCA
             alpha = self.alpha
-            sigma = RaRa - alpha*RbRb #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
+            JRaRaJ = LA.multi_dot((J.T,RaRa,J))
+            JRbRbJ = LA.multi_dot((J.T,RbRb,J))
+            sigma = JRaRaJ - alpha*JRbRbJ #doing pseudo inverse to throw out eigenvalues that would blow this ratio to infinity
         
             # getting eigenvalues and eigenvectors
-            w, v = LA.eig(sigma)
+            w, v = LA.eigh(sigma)
             eig_idx = np.argsort(w)[::-1]
             
-            X = v[:,eig_idx]
+            X = J.dot(v[:,eig_idx])
             S_total = w[eig_idx]
-            
-        elif method == 'v2': #this is similar to cPCA++
-        
-            #check if RbRb is well-conditioned, if not we adjust the matrix
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-            
-            sigma = np.dot(LA.inv(RbRb),RaRa)
-            # getting eigenvalues and eigenvectors
-            w, v = LA.eig(sigma)
-            eig_idx = np.argsort(w)[::-1]
-            
-            X = v[:,eig_idx]
-            S_total = w[eig_idx]
-            
-        elif method == 'v2.1': #this is similar to cPCA++, but orthogonal
-            from scipy.linalg import sqrtm
-            #check if RbRb is well-conditioned, if not we adjust the matrix
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-            
-            M = sqrtm(RbRb)
-            sigma = LA.multi_dot((LA.inv(M).T,RaRa,LA.inv(M)))
-            
-            # getting eigenvalues and eigenvectors
-            w, v = LA.eig(sigma)
-            eig_idx = np.argsort(w)[::-1]
-            
-            X = v[:,eig_idx]
-            S_total = w[eig_idx]
+            obj_info    = 'Ra - alpha * Rb'
+        else:
 
-        elif method == 'v3': #this is (A-B)/B
-            from scipy.linalg import sqrtm
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
+            denom_well_conditioned = False
+            for idx in np.arange(Niter):
+                #find the gcPCA loadings accord to method requested
+                JRaRaJ = LA.multi_dot((J.T,RaRa,J))
+                JRbRbJ = LA.multi_dot((J.T,RbRb,J))
                 
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            B = sqrtm(RbRb)
-            BtRaRbB = LA.multi_dot((LA.inv(B).T,RaRa-RbRb,LA.inv(B)))
-            
-            D, y = LA.eig(BtRaRbB)
-            Y = y[:, np.flip(np.argsort(D))]
-            X_temp = np.dot(LA.inv(B),Y)
-            X = X_temp/LA.norm(X_temp, axis=0)
+                if sum(np.char.equal(method,['v2','v2.1'])):
+                       numerator        = JRaRaJ
+                       denominator      = JRbRbJ
+                       obj_info    = 'Ra / Rb'
+                elif sum(np.char.equal(method,['v3','v3.1'])):
+                       numerator        = JRaRaJ - JRbRbJ
+                       denominator      = JRbRbJ
+                       obj_info    = '(Ra-Rb) / Rb'
+                elif sum(np.char.equal(method,['v4','v4.1'])):
+                       numerator        = JRaRaJ - JRbRbJ
+                       denominator      = JRaRaJ + JRbRbJ
+                       obj_info    = '(Ra-Rb) / (Ra+Rb)'  
 
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-            
-        elif method == 'v3.1': #this is (A-B)/B but with orthogonality constrain
-            from scipy.linalg import sqrtm,orth
-            
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
+                if denom_well_conditioned == False:
+                    if LA.cond(denominator) > self.cond_number:
+                        warnings.warn("Denominator is ill-conditioned, fixing it. " +
+                                      "Be aware that gcPCA values will be" +
+                                      "slightly smaller")
+                        
+                        w = LA.eigvals(denominator)
+                        w = w[np.argsort(w)[::-1]]
+                        alpha = w[0]/self.cond_number - w[-1]
+                        denominator = denominator + np.eye(denominator.shape[0])*alpha
+                        denom_well_conditioned = True;
+                    else:
+                        denom_well_conditioned = True;
                 
-                alpha = w[0]/self.cond_number - w[-1]
+                #mounting the equation
+                M = sqrtm(denominator)
+                sigma = LA.multi_dot((LA.inv(M).T,numerator,LA.inv(M)))
+                #getting eigenvectors
+                w, v = LA.eigh(sigma)
+                eig_idx = np.argsort(w)[::-1]
+                v = v[:,eig_idx]
                 
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            # Iteratively take out the ncPCs by deflating basis
-            n_basis = RbRb.shape[0]
+                X_temp = LA.multi_dot((J,LA.inv(M),v))
+                X_temp = np.divide(X_temp,LA.norm(X_temp,axis=0))
 
-            _, _, V = LA.svd(RbRb, full_matrices=False)
-            
-            Jnew = V.T
-            for aa in np.arange(n_basis):
-                B = sqrtm(LA.multi_dot((Jnew.T, RbRb, Jnew)))
-
-                # find the eigenvalues and sort according to magnitude
-                JBinv = LA.lstsq(Jnew.T, LA.pinv(B))[0]
-                D, y = LA.eig(LA.multi_dot((JBinv.T, RaRa-RbRb, JBinv)))
-                Y = y[:, np.flip(np.argsort(D))]
-
-                X_temp = np.dot(JBinv, Y[:,0]);
-
-                if aa == 0:
-                    X = X_temp/LA.norm(X_temp, axis=0)
+                #copy results to X
+                if idx == 0:
+                    X = X_temp;
+                    X_orth = np.expand_dims(X_temp[:,0],axis=1)
                 else:
-                    temp_norm_ldgs = X_temp/LA.norm(X_temp, axis=0)
-                    X = np.column_stack((X, temp_norm_ldgs))
+                    X_add = np.expand_dims(X_temp[:,0],axis=1)
+                    X_orth = np.hstack((X_orth,X_add))
+                    
+                # shrinking J (find an orthonormal basis for the subspace of J orthogonal
+                # to the X vectors we have already collected)
+                J,_,_ = LA.svd(Jorig - LA.multi_dot((X_orth,X_orth.T,Jorig)),full_matrices=False)
+                J = J[:,:Niter-(idx+1)]
+                
+            #getting orthogonal loadings if it was method requested
+            if sum(np.char.equal(method, ['v2.1', 'v3.1', 'v4.1'])):
+                X = X_orth
 
-                # deflating J
-                gamma = np.dot(LA.pinv(B), Y[:, 0])
-                gamma = gamma/LA.norm(gamma)  # normalizing by the norm
-                gamma_outer = np.outer(gamma, gamma.T)
-                
-                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
-                # J_reduced = J_reduced/LA.norm(J_reduced,axis=0)
-                # _, _, V = LA.svd(LA.multi_dot((J_reduced.T,RbRb,J_reduced)), full_matrices=False)
-                # new_rank = LA.matrix_rank(LA.multi_dot((J_reduced.T,RbRb,J_reduced)))
-                # Jnew = J_reduced.dot(V[:new_rank,:].T)
-                
-                Jnew = orth(J_reduced)
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T, RaRa-RbRb, X))
-            Sbot = LA.multi_dot((X.T, RbRb, X))
+            # getting the eigenvalue of gcPCA
+            if sum(np.char.equal(method,['v2','v2.1'])):
+                numerator_orig   = RaRa
+                denominator_orig = RbRb
+            elif sum(np.char.equal(method,['v3','v3.1'])):
+                numerator_orig   = RaRa - RbRb
+                denominator_orig = RbRb
+            elif sum(np.char.equal(method,['v4','v4.1'])):
+                numerator_orig   = RaRa - RbRb
+                denominator_orig = RaRa + RbRb
+            Stop = LA.multi_dot((X.T, numerator_orig, X))
+            Sbot = LA.multi_dot((X.T, denominator_orig, X))
             S_total = np.divide(np.diagonal(Stop), np.diagonal(Sbot))
-              
-        elif method == 'v3.2':
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            iRbRaRb = np.dot(LA.inv(RbRb),RaRa-RbRb)
-            
-            D, x = LA.eig(iRbRaRb)
-            X = x[:, np.flip(np.argsort(D))]
-
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-
-        elif method == 'v3.3': # the orthogonal version
-            from scipy.linalg import sqrtm
-            if LA.cond(RbRb) > self.cond_number:
-                warnings.warn("Rb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RbRb = RbRb + np.eye(RbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            M = sqrtm(RbRb)
-            iRbRaRb = LA.multi_dot((LA.inv(M).T,RaRa-RbRb,LA.inv(M)))
-            D, x = LA.eig(iRbRaRb)
-            X = x[:, np.flip(np.argsort(D))]
-
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-            
-        elif method == 'v4': #this is ncPCA index
-            from scipy.linalg import sqrtm
-            
-            RaRaRbRb = RaRa+RbRb
-            if LA.cond(RaRaRbRb) > self.cond_number:
-                warnings.warn("RaRa+RbRb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RaRaRbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RaRaRbRb = RaRaRbRb + np.eye(RaRaRbRb.shape[0])*alpha
-                
-            ## Calculating gcPCA below
-            B = sqrtm(RaRaRbRb)
-            BtRaRbB = LA.multi_dot((LA.inv(B).T,RaRa-RbRb,LA.inv(B)))
-            
-            D, y = LA.eig(BtRaRbB)
-            Y = y[:, np.flip(np.argsort(D))]
-            X_temp = np.dot(LA.inv(B),Y)
-            X = X_temp/LA.norm(X_temp, axis=0)
-    
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RaRaRbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-            
-        elif method == 'v4.1': #this is ncPCA index with orthogonality constrain
-            from scipy.linalg import sqrtm,orth
-            
-            RaRaRbRb = RaRa+RbRb
-            if LA.cond(RaRaRbRb) > self.cond_number:
-                warnings.warn("RaRa+RbRb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RaRaRbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RaRaRbRb = RaRaRbRb + np.eye(RaRaRbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            # Iteratively take out the ncPCs by deflating basis
-            RaRaRbRb = RaRa+RbRb
-            n_basis = RaRaRbRb.shape[0]
-
-            _, _, V = LA.svd(RaRaRbRb, full_matrices=False)
-            
-            Jnew = V.T
-            for aa in np.arange(n_basis):
-                B = sqrtm(LA.multi_dot((Jnew.T, RaRaRbRb, Jnew)))
-
-                # find the eigenvalues and sort according to magnitude
-                JBinv = LA.lstsq(Jnew.T, LA.pinv(B))[0]
-                D, y = LA.eig(LA.multi_dot((JBinv.T, RaRa-RbRb, JBinv)))
-                Y = y[:, np.flip(np.argsort(D))]
-
-                X_temp = np.dot(JBinv, Y[:,0]);
-
-                if aa == 0:
-                    X = X_temp/LA.norm(X_temp, axis=0)
-                else:
-                    temp_norm_ldgs = X_temp/LA.norm(X_temp, axis=0)
-                    X = np.column_stack((X, temp_norm_ldgs))
-
-                # deflating J
-                gamma = np.dot(LA.pinv(B), Y[:, 0])
-                gamma = gamma/LA.norm(gamma)  # normalizing by the norm
-                gamma_outer = np.outer(gamma, gamma.T)
-                
-                J_reduced = Jnew - np.dot(Jnew,gamma_outer)
-                Jnew = orth(J_reduced)
-
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T, RaRa-RbRb, X))
-            Sbot = LA.multi_dot((X.T, RaRa+RbRb, X))
-            S_total = np.divide(np.diagonal(Stop), np.diagonal(Sbot))
-
-        elif method == 'v4.2': #solving as inv((A+B))*(A-B)
-            
-            RaRaRbRb = RaRa+RbRb
-            if LA.cond(RaRaRbRb) > self.cond_number:
-                warnings.warn("RaRa+RbRb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RaRaRbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RaRaRbRb = RaRaRbRb + np.eye(RaRaRbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            iRbRaRb = np.dot(LA.inv(RaRaRbRb),RaRa-RbRb)
-            
-            D, x = LA.eig(iRbRaRb)
-            X = x[:, np.flip(np.argsort(D))]
-
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RaRa+RbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
-
-        elif method == 'v4.3': # the orthogonal version inv(M)*(A-B)*inv(M), M=sqrtm(A+B)
-            from scipy.linalg import sqrtm
-            RaRaRbRb = RaRa+RbRb
-            if LA.cond(RaRaRbRb) > self.cond_number:
-                warnings.warn("RaRa+RbRb is ill-conditioned, fixing it. " +
-                              "Be aware that gcPCA values will be" +
-                              "slightly smaller")
-                w = LA.eigvals(RaRaRbRb)
-                w = w[np.argsort(w)[::-1]]
-                
-                alpha = w[0]/self.cond_number - w[-1]
-                
-                RaRaRbRb = RaRaRbRb + np.eye(RaRaRbRb.shape[0])*alpha
-                
-            # Calculating gcPCA below
-            M = sqrtm(RaRaRbRb)
-            iRbRaRb = LA.multi_dot((LA.inv(M).T,RaRa-RbRb,LA.inv(M)))
-            D, x = LA.eig(iRbRaRb)
-            X = x[:, np.flip(np.argsort(D))]
-
-            # getting top and bottom eigenvalues
-            Stop = LA.multi_dot((X.T,RaRa-RbRb,X))
-            Sbot = LA.multi_dot((X.T,RaRa+RbRb,X))
-            S_total = np.divide(np.diagonal(Stop),np.diagonal(Sbot))
                 
         self.loadings_ = X
         self.gcPCA_values_ = S_total
-        self.Ra_scores_ = np.dot(Ra,X)
-        self.Rb_scores_ = np.dot(Rb,X)
-        self.Ra = Ra
-        self.Rb = Rb
+        self.Ra_scores_ = np.dot(Ra ,X)
+        self.Rb_scores_ = np.dot(Rb, X)
+        self.objetive_function_ = obj_info
                 
         # shuffling to define a null distribution
         if Nshuffle>0:
             self.null_distribution()
-            
+        """add null method"""
         def transform(self,Ra,Rb):
             import numpy as np
             try:

@@ -48,12 +48,14 @@ pars.addRequired('Za');
 pars.addRequired('Zb');
 pars.addRequired('gcPCAversion');
 pars.addOptional('Nshuffle', 0, @isnumeric);
+pars.addOptional('normalize', true, @islogical);
 pars.addOptional('Ncalc', Inf, @isnumeric);
 pars.addOptional('maxcond', 10^13, @isnumeric); % you shouldn't need to change this, but it's condition number we regularize the denominator matrix to if it's ill-conditioned
 pars.parse('Za', 'Zb', 'gcPCAversion', varargin{:});
 maxcond = pars.Results.maxcond;
 Ncalc = pars.Results.Ncalc;
 Nshuffle = pars.Results.Nshuffle;
+normalize_flag = pars.Results.normalize;
 
 %% Step 1: normalize inputs if necessary
 N = size(Zb, 2); % number of dimensions
@@ -61,19 +63,20 @@ if size(Za, 2) ~= N
     error('Za and Zb have different numbers of dimensions');
 end
 
-Zb_temp = normalize(zscore(Zb), 'norm');
-Za_temp = normalize(zscore(Za), 'norm');
-
-if sum((Zb_temp(:) - Zb(:)) .^2) > (0.01 .* Zb_temp.^2)
-    warning('Zb was not normalized properly - normalizing now');
-    Zb = Zb_temp;
+if normalize_flag
+    Zb_temp = normalize(zscore(Zb), 'norm');
+    Za_temp = normalize(zscore(Za), 'norm');
+    
+    if sum((Zb_temp(:) - Zb(:)) .^2) > (0.01 .* Zb_temp.^2)
+        warning('Zb was not normalized properly - normalizing now');
+        Zb = Zb_temp;
+    end
+    if sum((Za_temp(:) - Za(:)) .^2) > (0.01 .* Za_temp.^2)
+        warning('Za was not normalized properly - normalizing now');
+        Za = Za_temp;
+    end
+    clear Zb_temp Za_temp
 end
-if sum((Za_temp(:) - Za(:)) .^2) > (0.01 .* Za_temp.^2)
-    warning('Za was not normalized properly - normalizing now');
-    Za = Za_temp;
-end
-clear Zb_temp Za_temp
-
 %% Step 2: do SVD and discard dimensions if necessary
 p = min(size(Za, 1), size(Zb, 1)); % we use the p from whichever dataset has fewer datapoints
 N_gcPCs = min(p, N); % number of gcPCs to calculate. If p < N (meaning
@@ -154,9 +157,10 @@ for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates
     M = sqrtm(denominator);
     clear denominator
     [y, D] = eig(M \ numerator / M); 
+%     [y, D] = eig(inv(M) * numerator * inv(M)); 
     clear numerator
-    y = real(y); % there can be tiny imaginary parts due to numerical instability
-    D = real(diag(D));
+%     y = real(y); % there can be tiny imaginary parts due to numerical instability
+%     D = real(diag(D));
     [D, sortidx] = sort(D, 'descend');
     clear D
     y = y(:, sortidx);
