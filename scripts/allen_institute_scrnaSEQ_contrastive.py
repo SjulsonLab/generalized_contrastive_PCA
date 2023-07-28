@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import zscore
 import seaborn as sns
 
-# repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
+#repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
 # repo_dir =  #repo dir in HPC
 
 sys.path.append(repo_dir)
@@ -65,8 +65,8 @@ def feature_reduction2(data_matrix):
     return reduced_data,indexes
 #%% loading data
 
-# data_dir = "/mnt/SSD4TB/ncPCA_files/allen_RNA_Seq/" #data dir in linux machine
-data_dir = "C:\\Users\\fermi\\Data\\allen_RNA_Seq\\"  #data dir in win laptop
+data_dir = "/mnt/SSD4TB/ncPCA_files/allen_RNA_Seq/" #data dir in linux machine
+# data_dir = "C:\\Users\\fermi\\Data\\allen_RNA_Seq\\"  #data dir in win laptop
 # data_dir = #data dir in HPC
 
 temp_visp = pd.read_csv(data_dir+'mouse_VISp_2018-06-14_exon-matrix.csv')
@@ -84,7 +84,7 @@ alm_count = temp_alm.T.values
 # new_visp_count = reduced_count[:visp_count.shape[0],:]
 # new_alm_count  = reduced_count[visp_count.shape[0]:,:]
 
-gcpca_mdl = gcPCA(method='v4.1')
+gcpca_mdl = gcPCA(method='v4')
 gcpca_mdl.fit(visp_count,alm_count)
 
 #%% post analysis of index ncPCA

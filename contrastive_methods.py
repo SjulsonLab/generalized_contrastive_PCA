@@ -3,20 +3,27 @@
 """
 Created on Thu May  4 17:52:12 2023
 
-Set of classes to do different contrastive methods in foreground (FG) and
-background (BG), it's implemented here 1) contrastive PCA (FG - alpha*BG),
-2) ratio contrastive PCA (FG/BG), 3) normalized contrastive PCA ((FG-BG)/BG),
-4) index normalized contrastive PCA ((FG-BG)/(FG+BG)). The methods are called
-1) cPCA, 2) ratio_cPCA, 3) ncPCA, 4) index_ncPCA
+Set of classes to do different contrastive methods in foreground (Ra) and
+background (Rb) that you want to compare, it's implemented here:
+    v1 : contrastive PCA (Ra - alpha*Rb),
+    v2 : ratio contrastive PCA (Ra/Rb), 
+    v3 : normalized contrastive PCA ((Ra-Rb)/Rb),
+    v4 : index normalized contrastive PCA ((Ra-Rb)/(Ra+Rb)).
 
+The original versions do not return orthogonal dimensions, for that you have to use 
+v2.1, v3.1 and v4.1 for each method respectively. Be aware this method is much slower
+
+The algorthim assumes you put samples in the rows and features in the columns,
+as in n x p where n is the sample number and p is the feature number
+
+The method fit returns the following fields:
+loadings_ : loadings of the gcPCs
+gcPCA_values_ : similar to eigenvalue, what is the gcPCA value according to the method you picked.
+Ra_scores_ : Ra projected into the gcPCA vectors (loadings_)
+Rb_scores_ : Rb projected into the gcPCA vectors (loadings_)
+objetive_function_ : Objective function based on the method you picked.
 @author: Eliezyer de Oliveira
 """
-
-#%% should prepare this code as a class with methods and etc.
-# Return an object with data projected on to the ncPCs
-# loadings
-# other stuff
-# put option to normalize the data or not
 
 import warnings
 import numpy as np

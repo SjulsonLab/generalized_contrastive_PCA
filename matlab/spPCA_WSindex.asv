@@ -1,4 +1,4 @@
-function [B, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
+function [M, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
 
 % function [B, S, X, info] = spPCA_WSindex(Ns, Nw, Nshuffle)
 %
@@ -184,11 +184,7 @@ B.awake = Nw * X;
 % extracting the diagonal weight matrix
 % S.sleep = vecnorm(M.sleep)';
 % S.awake = vecnorm(M.awake)';
-S.sleep = vecnorm(B.sleep)';
-S.awake = vecnorm(B.awake)';
 
 % normalizing the columns of the B's
-% M.sleep = M.sleep * diag(1./S.sleep);
-% M.awake = M.awake * diag(1./S.awake);
-B.sleep = B.sleep * diag(1./S.sleep);
-B.awake = B.awake * diag(1./S.awake);
+M.sleep = M.sleep * diag(1./S.sleep);
+M.awake = M.awake * diag(1./S.awake);
