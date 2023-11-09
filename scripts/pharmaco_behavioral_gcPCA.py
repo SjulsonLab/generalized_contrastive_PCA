@@ -17,8 +17,8 @@ from scipy.stats import zscore
 import pickle
 import seaborn as sns
 from collections import OrderedDict
-# repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
+# repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
 # repo_dir =  #repo dir in HPC
 
 sys.path.append(repo_dir)
@@ -27,13 +27,14 @@ from contrastive_methods import gcPCA
 
 #%% loading data
 
-# data_dir = "/mnt/SSD4TB/ncPCA_files/allen_RNA_Seq/" #data dir in linux machine
-data_dir = 'C:\\Users\\fermi\\Dropbox\\preprocessing_data\\ncPCA_files\\behavioral\\pharmacobehavioral\\'  #data dir in win laptop
+data_dir = "/mnt/SSD4TB/ncPCA_files/behavioral/pharmacobehavioral/" #data dir in linux machine
+# data_dir = 'C:\\Users\\fermi\\Dropbox\\preprocessing_data\\ncPCA_files\\behavioral\\pharmacobehavioral\\'  #data dir in win laptop
 fid = open(data_dir + 'fingerprints.pkl','rb')
 fingerprints, fingerprint_labels = pickle.load(fid,encoding='latin1')
 x = fingerprints['moseq']
 
 drug_labels = fingerprint_labels['y_drug']
+highlow_label = fingerprint_labels['highorlow']
 dose_labels = fingerprint_labels['dose']
 
 # getting labels of unique class and drug
@@ -52,11 +53,13 @@ temp_hd = np.zeros(drugs_data.shape[0])#high dose
 for y in np.unique(drug_labels):
     if y<15:
         idx = np.argwhere(drug_labels == y)
-        temp_dl = temp_dose_labels[idx] == np.max(temp_dose_labels[idx])
+        indexes = idx.astype(int).flatten()
+        temp_dl = np.char.equal([highlow_label[index] for index in indexes],'High')
+        # temp_dl = temp_dose_labels[idx] == np.min(temp_dose_labels[idx])
         temp_hd[idx[temp_dl]] = 1
 #%% preparing data for gcPCA
 
-drugs_data = drugs_data[temp_hd.astype(bool)]
+# drugs_data = drugs_data[temp_hd.astype(bool)]
 # fitting gcpca
 gcpca_mdl = gcPCA(method='v4')
 gcpca_mdl.fit(drugs_data,control_data)
@@ -87,7 +90,7 @@ short_name_map = OrderedDict([
 #getting drug as number labels, removing the last one that corresponds to control
 y_drug = fingerprint_labels['y_drug']
 y_drug = y_drug[y_drug!=15]
-y_drug = y_drug[temp_hd.astype(bool)]
+# y_drug = y_drug[temp_hd.astype(bool)]
 
 color_map = dict(zip(unique_class, sns.color_palette(palette='Paired', n_colors=len(unique_class))))
 class_per_drug = []

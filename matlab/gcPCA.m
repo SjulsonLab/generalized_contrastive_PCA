@@ -161,7 +161,7 @@ for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates
     clear numerator
 %     y = real(y); % there can be tiny imaginary parts due to numerical instability
 %     D = real(diag(D));
-    [D, sortidx] = sort(D, 'descend');
+    [D, sortidx] = sort(diag(D), 'descend');
     clear D
     y = y(:, sortidx);
 
