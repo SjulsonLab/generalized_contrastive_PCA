@@ -19,6 +19,7 @@ from scipy.linalg import orth
 from scipy.stats import zscore
 import sys
 import seaborn as sns
+import random
 
 repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
 sys.path.append(repo_dir)
@@ -27,12 +28,16 @@ from ncPCA_project_utils import cosine_similarity_multiple_vectors
 
 sns.set_style("whitegrid")
 sns.set_context("talk")
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+plt.rc('axes',edgecolor='k')
+folder_save_plot = "C:\\Users\\fermi\\Dropbox\\figures_ncPCA\\toy_data\\"
 #variables
 N_samples  = 100 #number of observations
 N_features = 30 #number of features (and PCs, data is full rank)
-pc_change  = [0,28] #pcs that are going to be changed in variance
+pc_change  = [10,28] #pcs that are going to be changed in variance
 
-np.random.default_rng(20237)
+random.seed(1)
 #%% generating toy data with linear decay
 
 #background data
@@ -76,16 +81,22 @@ cov_fg = data_fg.T.dot(data_fg)
 
 #plot of covariance matrices
 plt.figure();
-plt.imshow(cov_bg,cmap='bwr')
-plt.title('background cov')
+plt.imshow(cov_bg-np.diag(np.diag(cov_bg)),cmap='bwr',clim=(-3,3))
+plt.colorbar()
+plt.title('B covariance')
 plt.xlabel('features')
 plt.ylabel('features')
+plt.grid(False)
+plt.savefig(folder_save_plot+"B_cov.pdf", transparent=True)
 
 plt.figure();
-plt.imshow(cov_fg,cmap='bwr')
-plt.title('foreground cov')
+plt.imshow(cov_fg-np.diag(np.diag(cov_fg)),cmap='bwr',clim=(-3,3))
+plt.colorbar()
+plt.title('A covariance')
 plt.xlabel('features')
 plt.ylabel('features')
+plt.grid(False)
+plt.savefig(folder_save_plot+"A_cov.pdf", transparent=True)
 
 #plot of
 data_fg_increased = U[:,pc_change]*S_fg[pc_change]@V.T[pc_change,:];
@@ -96,20 +107,30 @@ data_fg_increased = U[:,pc_change]*S_fg[pc_change]@V.T[pc_change,:];
 # plt.xlabel('features')
 # plt.ylabel('features')
 
+fg_inc_cov= data_fg_increased.T.dot(data_fg_increased);
 plt.figure();
-plt.imshow(data_fg_increased.T.dot(data_fg_increased),cmap='bwr')
+plt.imshow(fg_inc_cov - np.diag(np.diag(fg_inc_cov)),cmap='bwr',clim=(-1,1))
+plt.colorbar()
 plt.title('increased dimensions cov')
 plt.xlabel('features')
 plt.ylabel('features')
+plt.grid(False)
+plt.savefig(folder_save_plot+"increased_in_A.pdf", transparent=True)
 
-gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
+# gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
+gcPCA_mdl = gcPCA(method='v4',normalize_flag=False)
 gcPCA_mdl.fit(data_fg,data_bg)
-cPCs_all = gcPCA_mdl.loadings_*gcPCA_mdl.gcPCA_values_
+
+R_loadings = gcPCA_mdl.loadings_[:,:2].dot(gcPCA_mdl.loadings_[:,:2].T)
+gcPCs_cov = cov_fg.dot(R_loadings)
 plt.figure();
-plt.imshow(cPCs_all[:,:2]@cPCs_all[:,:2].T,cmap='bwr')
-plt.title('top 2 cPCs cov')
+plt.imshow(gcPCs_cov - np.diag(np.diag(gcPCs_cov)),cmap='bwr',clim=(-1,1))
+plt.colorbar()
+plt.title('top 2 gcPCs')
 plt.xlabel('features')
 plt.ylabel('features')
+plt.grid(False)
+plt.savefig(folder_save_plot+"gcPC_recovered_cov.pdf", transparent=True)
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]

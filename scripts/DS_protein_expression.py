@@ -17,12 +17,18 @@ import seaborn as sns
 
 
 #%% setting up constant variables for the rest of the code
-repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
-data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
-rcParams['figure.dpi'] = 500
+# repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
+# data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
+repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\"
+data_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\datasets\\from_cPCA_paper\\"
+folder_save_plot = "C:\\Users\\fermi\\Dropbox\\figures_ncPCA\\cPCA_paper_results\\"
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+rcParams['figure.dpi'] = 200
+rcParams.update({'font.size': 22})
 #%% importing ncPCA
 sys.path.append(repo_dir)
-from ncPCA import ncPCA
+from contrastive_methods import gcPCA
 #%% loading data
 
 #going to the repo directory
@@ -53,22 +59,22 @@ background = data[background_idx]
 background = (background-np.mean(background,axis=0)) / np.std(background,axis=0) # standardize the dataset
 
 #%% running contrastive PCA
-sns.set_style("ticks")
-sns.set_context("notebook")
+# sns.set_style("ticks")
+# sns.set_context("notebook")
 
-style.use('dark_background')
+# style.use('default')
 mdl = contrastive.CPCA()
 projected_data = mdl.fit_transform(target, background, plot=True,colors=['w','r'], active_labels=sub_group_labels)
 
-#%% running ncPCA just for the intersect basis
+#%% running gcPCA v4
 
 sub_group_labels= np.array(sub_group_labels)
 a = np.where(sub_group_labels == 0)
 b = np.where(sub_group_labels == 1)
 
-sns.set_style("ticks")
-sns.set_context("talk")
-style.use('dark_background')
+# sns.set_style("ticks")
+# sns.set_context("talk")
+# style.use('default')
 
 #X,S = ncPCA_mdl.ncPCA_orth(background,target)
 #X, S = ncPCA(background, target)
@@ -77,16 +83,30 @@ style.use('dark_background')
 #target_projected = np.dot(target,X[:,:2])
 
 
+
+gcPCA_mdl = gcPCA(method='v4',normalize_flag=False)
+gcPCA_mdl.fit(target,background)
+
+gcPCs_all = gcPCA_mdl.loadings_
 figure()
-ncPCA_mdl = ncPCA(basis_type='intersect')
-ncPCA_mdl.fit(background,target)
-target_projected = ncPCA_mdl.N2_scores_
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
-scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
-xlabel('ncPC1')
-ylabel('ncPC2')
+target_projected = gcPCA_mdl.Ra_scores_
+scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
+scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
+xlabel('gcPC1')
+ylabel('gcPC2')
+plt.legend()
+plt.savefig(folder_save_plot+"DS_data_gcPCAv4.pdf", transparent=True)
+#%% running PCA to test
+U,S,V = np.linalg.svd(target,full_matrices=False)
+figure()
+target_projected = U
+scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
+scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
+xlabel('PC1')
+ylabel('PC2')
 plt.legend()
 
+plt.savefig(folder_save_plot+"DS_data_PCA.pdf", transparent=True)
 #%% running and plotting ncPCA
 
 sub_group_labels= np.array(sub_group_labels)
