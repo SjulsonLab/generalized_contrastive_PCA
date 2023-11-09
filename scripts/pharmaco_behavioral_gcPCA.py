@@ -17,8 +17,8 @@ from scipy.stats import zscore
 import pickle
 import seaborn as sns
 from collections import OrderedDict
-# repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
+# repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
 # repo_dir =  #repo dir in HPC
 
 sys.path.append(repo_dir)
@@ -27,8 +27,9 @@ from contrastive_methods import gcPCA
 
 #%% loading data
 
-# data_dir = "/mnt/SSD4TB/ncPCA_files/allen_RNA_Seq/" #data dir in linux machine
-data_dir = 'C:\\Users\\fermi\\Dropbox\\preprocessing_data\\gcPCA_files\\behavioral\\pharmacobehavioral\\'  #data dir in win laptop
+
+data_dir = "/mnt/SSD4TB/ncPCA_files/behavioral/pharmacobehavioral/" #data dir in linux machine
+# data_dir = 'C:\\Users\\fermi\\Dropbox\\preprocessing_data\\ncPCA_files\\behavioral\\pharmacobehavioral\\'  #data dir in win laptop
 fid = open(data_dir + 'fingerprints.pkl','rb')
 fingerprints, fingerprint_labels = pickle.load(fid,encoding='latin1')
 x = fingerprints['moseq']
@@ -38,6 +39,7 @@ fid = open(data_dir + 'syllablelabels.pkl','rb')
 syllables = pickle.load(fid,encoding='latin1')
 
 drug_labels = fingerprint_labels['y_drug']
+highlow_label = fingerprint_labels['highorlow']
 dose_labels = fingerprint_labels['dose']
 
 # getting labels of unique class and drug
@@ -56,8 +58,9 @@ temp_hd = np.zeros(drugs_data.shape[0])#high dose
 for y in np.unique(drug_labels):
     if y<15:
         idx = np.argwhere(drug_labels == y)
-        # temp_dl = temp_dose_labels[idx] == np.max(temp_dose_labels[idx])
-        temp_dl = temp_dose_labels[idx] > 0.24
+        indexes = idx.astype(int).flatten()
+        temp_dl = np.char.equal([highlow_label[index] for index in indexes],'High')
+        # temp_dl = temp_dose_labels[idx] == np.min(temp_dose_labels[idx])
         temp_hd[idx[temp_dl]] = 1
 #%% preparing data for gcPCA
 
@@ -110,7 +113,7 @@ for i, treatment in enumerate(unique_drug[:-1]):
     x, y = np.mean(p[idx,0:2], axis=0)
     plt.plot(x, y, 'o',markersize=15, color=colors_[i], label=short_name_map[treatment])
     plt.text(x + 0.001, y, short_name_map[treatment], fontsize=10, verticalalignment='center', )
-    
+
 sns.despine()
 plt.xlabel('gcPC1')
 plt.ylabel('gcPC2')
@@ -149,7 +152,7 @@ plt.stem(gcpca_mdl.loadings_[temp,0])
 for i, treatment in enumerate(unique_drug[:-1]):
     plot_i = np.argwhere(drug_sort==i)[0][0]
     ax = plt.subplot(16,1,plot_i+2)
-    
+
     idx = y_drug == i
     plt.plot(np.mean(drugs_data[idx,temp].T,axis=0),color=colors_[i])
     plt.ylabel(short_name_map[treatment],fontsize=8)
@@ -157,7 +160,7 @@ for i, treatment in enumerate(unique_drug[:-1]):
     ax.set_xticklabels([])
     # plt.ylim((-0.022,0.022))
     sns.despine()
-    
+
 # plotting gcPC2
 temp = np.argsort(gcpca_mdl.loadings_[:,1])
 temp = temp[:,np.newaxis]
@@ -172,7 +175,7 @@ drugs_data_proj = np.outer(gcpca_mdl.Ra_scores_[:,1],gcpca_mdl.loadings_[:,1].T)
 for i, treatment in enumerate(unique_drug[:-1]):
     plot_i = np.argwhere(drug_sort==i)[0][0]
     ax=plt.subplot(16,1,plot_i+2)
-    
+
     idx = y_drug == i
     plt.plot(np.mean(drugs_data[idx,temp].T,axis=0),color=colors_[i])
     plt.ylabel(short_name_map[treatment],fontsize=8)
@@ -180,7 +183,7 @@ for i, treatment in enumerate(unique_drug[:-1]):
     ax.set_xticklabels([])
     # plt.ylim((-0.027,0.027))
     sns.despine()
-    
+
 # plotting gcPC3
 temp = np.argsort(gcpca_mdl.loadings_[:,2])
 temp = temp[:,np.newaxis]
@@ -195,7 +198,7 @@ drugs_data_proj = np.outer(gcpca_mdl.Ra_scores_[:,2],gcpca_mdl.loadings_[:,2].T)
 for i, treatment in enumerate(unique_drug[:-1]):
     plot_i = np.argwhere(drug_sort==i)[0][0]
     ax=plt.subplot(16,1,plot_i+2)
-    
+
     idx = y_drug == i
     plt.plot(np.mean(drugs_data[idx,temp].T,axis=0),color=colors_[i])
     plt.ylabel(short_name_map[treatment],fontsize=8)
@@ -203,7 +206,7 @@ for i, treatment in enumerate(unique_drug[:-1]):
     ax.set_xticklabels([])
     # plt.ylim((-0.027,0.027))
     sns.despine()
-    
+
 
 #%% running tsne on projected data
 drugs_data_red = np.outer(gcpca_mdl.Ra_scores_[:,0],gcpca_mdl.loadings_[:,0].T) + np.outer(gcpca_mdl.Ra_scores_[:,1],gcpca_mdl.loadings_[:,1].T)
@@ -218,4 +221,3 @@ for i, treatment in enumerate(unique_drug[:-1]):
     x, y = np.mean(p1[idx,0:2], axis=0)
     plt.plot(x, y, 'o',markersize=15, color=colors_[i], label=short_name_map[treatment])
     plt.text(x + 0.001, y, short_name_map[treatment], fontsize=10, verticalalignment='center', )
-    
