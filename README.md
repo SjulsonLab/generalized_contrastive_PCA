@@ -29,7 +29,7 @@ gcPCA_model = gcPCA(method='v4.1',normalize_flag=True)
 Methods can be 'vn.1' or just 'vn', where n can vary from 1 to 4. versions ending
 in .1 will return orthogonal dimensions. 'v4.1' corresponds to the (A-B)/(A+B)
 objective function, for the other versions please check the table from the SFN
-poster in [here](poster_sfn/Eliezyer_Oliveira_SFN_poster)
+poster in [here](poster_sfn/Eliezyer_Oliveira_SFN_poster.pdf)
 
 normalize_flag will signal the function to normalize your data or not, in case
 you have a custom normalization you prefer to use, set this variable to False.
