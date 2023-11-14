@@ -1,8 +1,6 @@
 # generalized_contrastive_PCA
 Repository for code and scripts related to generalized contrastive PCA
 
-[![Github All Releases](https://img.shields.io/github/downloads/SjulsonLab/generalized_contrastive_PCA/total.svg)]()
-
 --------------------------------------------------------------------------------
 ### Installation
 
@@ -13,8 +11,10 @@ Repository for code and scripts related to generalized contrastive PCA
   - conda env create -f environment.yml
 ```
 
-###### Alternative Installation
+### Alternative Installation
+
 If you have an environment you want gcPCA to, you can just refer to the class gcPCA in the file `contrastive_methods.py`, at this version you will only need to install the packages: warnings, numpy and scipy.
+
 --------------------------------------------------------------------------------
 ### Usage
 
