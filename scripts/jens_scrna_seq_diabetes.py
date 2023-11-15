@@ -12,9 +12,14 @@ import shutil
 import numpy as np
 import pandas as pd
 import pynapple as nap
-from ncPCA import ncPCA
-from ncPCA import cPCA
-import contrastive
+import sys
+
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir in linux machine
+# repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA" #repository dir in win laptop
+# repo_dir =  #repo dir in HPC
+
+sys.path.append(repo_dir)
+from contrastive_methods import gcPCA
 
 from sklearn.model_selection import cross_val_score
 from matplotlib.pyplot import *
@@ -35,21 +40,38 @@ annotation = pd.read_csv(os.path.join(data_path,'GSE153855_Cell_annotation.txt')
 #data.INS.groupby(annotation.CellType.values=='Beta').hist(legend=['no Beta','Beta'])
 
 #separating data into normal_df
-non_beta_df = data[(annotation.CellType.values!='Beta') & (annotation.Disease.values=='normal')]
+diabetes_beta_df = data[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='type II diabetes')]
+normal_beta_df = data[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
+diabetes_alpha_df = data[(annotation.CellType.values=='Alpha') & (annotation.Disease.values=='type II diabetes')]
+normal_alpha_df = data[(annotation.CellType.values=='Alpha') & (annotation.Disease.values=='normal')]
+diabetes_delta_df = data[(annotation.CellType.values=='Delta') & (annotation.Disease.values=='type II diabetes')]
+normal_delta_df = data[(annotation.CellType.values=='Delta') & (annotation.Disease.values=='normal')]
+diabetes_gamma_df = data[(annotation.CellType.values=='Gamma') & (annotation.Disease.values=='type II diabetes')]
+normal_gamma_df = data[(annotation.CellType.values=='Gamma') & (annotation.Disease.values=='normal')]
 
-beta_df = data[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
+#log transforming the data
+tempN1 = np.log(diabetes_beta_df.values+1)
+tempN2 = np.log(normal_beta_df.values+1)
 
+#throwing out the features that are empty in both datasets
+features_to_keep = (np.sum(tempN1==0,axis=0)!=tempN1.shape[0]) + (np.sum(tempN2==0,axis=0)!=tempN2.shape[0])
+N1_red = tempN1[:,features_to_keep]
+N2_red = tempN2[:,features_to_keep]
 # zscoring data
-N1 = non_beta_df.values
-N1 = np.divide(stats.zscore(N1),np.linalg.norm(stats.zscore(N1),axis=0))
 
-N2 = beta_df.values
-N2 = np.divide(stats.zscore(N2),np.linalg.norm(stats.zscore(N2),axis=0))
+# N1 = np.divide(stats.zscore(N1_red),np.linalg.norm(stats.zscore(N1_red),axis=0))
+# N2 = np.divide(stats.zscore(N2_red),np.linalg.norm(stats.zscore(N2_red),axis=0))
+
+
+N1 = N1_red - np.mean(N1_red,axis=0)
+N2 = N2_red - np.mean(N2_red,axis=0)
 
 # removing nan from the dataset (likely empty vectors etc, THIS NEEDS TO BE LOOKED UPON)
 #indices_to_zero = (np.sum(np.isnan(N1),axis=0)>0) (np.sum(np.isnan(N2),axis=0)>0)
-N1[np.isnan(N1)]=0
-N2[np.isnan(N2)]=0
+# N1[np.isnan(N1)]=0
+# N2[np.isnan(N2)]=0
+gcpca_mdl = gcPCA(method='v4',normalize_flag=False)
+gcpca_mdl.fit(N1,N2) #N1 is diabetes and N2 is normal, all beta cells
 
 #%% cleaning data to have a smaller subspace to calculate
 
@@ -105,10 +127,10 @@ index_n1 = np.zeros(N_full.shape[0])
 index_n1[:N1.shape[0]]=1
 index_n1 = index_n1>0
 
-idx = (annotation.CellType.values!='Beta') & (annotation.Disease.values=='normal')
-reduced_values_n1 = annotation.CellType.values[idx]
-betalabels = annotation.CellType.values[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
-concat_ann = np.concatenate((reduced_values_n1,betalabels))
+idx = (annotation.CellType.values=='Beta') & (annotation.Disease.values=='type II diabetes')
+reduced_values_n1 = annotation.Disease.values[idx]
+betalabels = annotation.Disease.values[(annotation.CellType.values=='Beta') & (annotation.Disease.values=='normal')]
+concat_ann = np.concatenate((reduced_values_n1,betalabels)) #concatenated annotation
 
 c = 0
 labels_id = np.zeros(concat_ann.shape)
@@ -126,6 +148,39 @@ l1_log_reg.fit(N_full,labels_id)
 
 #picking genes to use
 genes_to_keep = np.argwhere(np.abs(l1_log_reg.coef_.sum(axis=0))>0)
+
+#%% running gcPCA
+
+gcpca_mdl = gcPCA(method='v4')
+gcpca_mdl.fit(N1,N2) #N1 is diabetes and N2 is normal, all beta cells
+
+#%% plotting gcPCA
+
+gcpca_gene_space = gcpca_mdl.loadings_[:,0]
+genes_names = data.columns;
+genes_names_kept = genes_names[features_to_keep]
+num = np.arange(len(gcpca_gene_space))
+
+#sorting gene expression
+idx_sorting = np.argsort(gcpca_gene_space);
+gcPCA_gene_space_sorted = gcpca_gene_space[idx_sorting]
+genes_names_sorted = genes_names_kept[idx_sorting]
+indx_INS = np.argwhere(genes_names_sorted=='INS')
+
+stem(gcPCA_gene_space_sorted);xlabel('genes');ylabel('expression norm.');title('gcPC1')
+text(num[indx_INS[0,0]],gcPCA_gene_space_sorted[indx_INS[0,0]],'INS',
+      rotation='vertical',fontsize=7)
+
+#%% plotting the top and bottom 40
+figure()
+stem(gcPCA_gene_space_sorted);xlabel('genes');ylabel('expression norm.');xlim((-1,40))
+for a in np.arange(20):
+    text(a,0.005,genes_names_sorted[a],rotation='vertical',fontsize=7)
+
+figure()
+stem(gcPCA_gene_space_sorted);xlabel('genes');ylabel('expression norm.');xlim((num[-1]-40,num[-1]))
+for a in np.arange(num[-1]-40,num[-1]+1):
+        text(a,-0.025,genes_names_sorted[a],rotation='vertical',fontsize=7)
 
 #%% running ncPCA
 #N1_trimmed = np.random.randn(10000,3000)

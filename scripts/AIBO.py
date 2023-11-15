@@ -1,48 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-Created on Wed Sep 15 16:54:10 2021
-Script to analyze data from allen institute part of the functional connectivity
-dataset. We want to see if lower rank PCs are able to predict drifting gratings 
-and natural images. The analysis steps will be:
-    
-    1) Get all the sessions from functional_connectivity dataset with VIsp
-    recordings
-    2) Perform PCA during the spontaneous activity recording
-    3) Predict the activity of drifting gratings using windowed PCs and random
-    projection
+Created on Wed Jan  4 08:40:25 2023
+
+Script to analyze the Allen Institute Brain Observatory dataset using ncPCA. Here we used the
+extracellular ephys recordings during visual stimulation.
+
+The goal is to:
+    1) Get spikes during static grating and natural scenes
+    2) In a cross-validated manner get PCs of natural scenes and static gratings and ncPCs using both
+    3) Show that ncPCs perform as well or better than PCs of that specific state
 
 @author: eliezyer
 """
 
+
 #%% importing essentials
 import os
+import sys
 import shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pynapple as nap
-import sys
-from ncPCA import ncPCA
+import time
 
 from allensdk.brain_observatory.ecephys.ecephys_project_cache import EcephysProjectCache
 from sklearn import svm
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score,train_test_split,KFold
 from matplotlib.pyplot import *
-from scipy import stats
-from contrastive import CPCA
+import seaborn as sns
+
+from scipy.stats import zscore
 import pickle
-from sklearn.model_selection import train_test_split
 from numpy import linalg as LA
 
 #%% parameters
-min_n_cell = 50
+min_n_cell = 50 #min number of cells in the brain area to be used
+kcv = KFold() #cross-validation method
 
-
-
+#%% import custom modules
+#repo_dir = "/gs/gsfs0/users/edeolive/github/normalized_contrastive_PCA/" #repository dir
+repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/"
+sys.path.append(repo_dir)
+from ncPCA import ncPCA
+from ncPCA import cPCA
+import ncPCA_project_utils as utils #this is going to be our package of reusable functions
 #%% preparing data to be loaded
 
 data_directory = '/mnt/probox/allen_institute_data/ecephys/' # must be a valid directory in your filesystem
+#data_directory = '/gs/gsfs0/users/edeolive/allen_institute_data/ecephys/'
 manifest_path = os.path.join(data_directory, "manifest.json")
 cache = EcephysProjectCache.from_warehouse(manifest=manifest_path)
 
@@ -69,12 +77,29 @@ for i in range(len(selected_sessions.index.tolist())):
 
 # saving the array_unit file
 units_file = str("array_units")
-with open(r'/home/pranjal/Documents/pkl_sessions/array_units', 'wb') as handle:
+with open(r'/mnt/probox/allen_institute_data/pkl_sessions/array_units', 'wb') as handle:
      pickle.dump(dict_units, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 
 #%% performing analysis, session loop starts here
+scores_total         = []
+track_fold           = []
+component_num        = []
+track_method         = []
+direction_cumulative = []
+stim_type            = []
+number_units         = []
+brain_area_name      = []
+session_name         = []
+
+loadings_dict  = {}
+loadings_dict['ncPCA'] = []
+loadings_dict['PCns'] = []
+loadings_dict['PCsg'] = []
+loadings_dict['brain_area'] = []
+loadings_dict['session'] = []
+
 for session_id in selected_sessions.index.values:
 
     loaded_session = cache.get_session_data(session_id)
@@ -110,12 +135,15 @@ for session_id in selected_sessions.index.values:
     sg_intervals = nap.IntervalSet(start=df_stim_sg.start_time.values,end=df_stim_sg.stop_time.values)
 
     # binning through using a loop in the cells until I can find a better way
+    #start timer
+    t_start = time.time()
     spikes_binned_ns = np.empty((len(ns_intervals.values),len(spikes_times.data)))
     bins_ns = ns_intervals.values.flatten()
     for aa in np.arange(len(spikes_times.data)):
         tmp = np.array(np.histogram(spikes_times.data[aa].index.values,bins_ns))
         spikes_binned_ns[:,aa] = tmp[0][np.arange(0,tmp[0].shape[0],2)]
-
+    t_stop = time.time()
+    
     # same method of binning through a loop in the cells, but for static gratings
     spikes_binned_sg = np.empty((len(sg_intervals.values),len(spikes_times.data)))
     bins_sg = sg_intervals.values.flatten()
@@ -132,172 +160,199 @@ for session_id in selected_sessions.index.values:
     scores_ns = np.empty((5,len(array_of_ba)))
     scores_sg = np.empty((5,len(array_of_ba)))
 
-    spikes_zsc_ns = stats.zscore(spikes_binned_ns)
-    spikes_zsc_sg = stats.zscore(spikes_binned_sg)
+    spikes_zsc_ns = zscore(spikes_binned_ns) #remove this later and update the variables name accordingly
+    spikes_zsc_sg = zscore(spikes_binned_sg)
 
     #%% getting ncPCA and cPCA loadings
 
     # fw ns and bw ns cPCA loadings, ns PCA loadings and fw ns cPCA loadings
-    brain_area_dict = {};
-    array_of_ba = ['LGd','VISp','VISrl','VISpm']
+    
+    """Here's how store the results, save a dictionary with a column of 
+        scores (acc/error) | fold | PCnumber | method | fw/bw | variable (ns/sg) | brain area name | session | 
+        
+    """
+        
+    for ba_name in array_of_ba:
+        units_idx = spikes_info["ecephys_structure_acronym"]==ba_name
 
-    for aa in np.arange(len(array_of_ba)):
-        units_idx = spikes_info["ecephys_structure_acronym"]==array_of_ba[aa]
+        """Code commented below is to check firing rate, not fully implemented yet!"""
+        #checking firing rate to include the cells or not! natural scenes
+        #total_ns_dur = np.diff(ns_intervals.values).sum()
+        #ns_fr = spikes_binned_ns[:,units_idx].sum(axis=0)/total_ns_dur
+        #checking for static gratings
+        #total_sg_dur = np.diff(sg_intervals.values).sum()
+        #sg_fr = spikes_binned_sg[:,units_idx].sum(axis=0)/total_sg_dur
+        
+        #checking for amount of bins where no cell fires, if more than 20% then throw the brain area out 
+        test_sg = spikes_binned_sg[:,units_idx].sum(axis=1)
+        ratio_dur_sg = np.sum(test_sg==0)/test_sg.shape[0]
+        if ratio_dur_sg>0.20:
+            continue
+        
+        test_ns = spikes_binned_ns[:,units_idx].sum(axis=1)
+        ratio_dur_ns = np.sum(test_ns==0)/test_ns.shape[0]
+        if ratio_dur_ns>0.20:
+            continue
+        
+        """ALSO ADD RETURNING NULL IF NCPCA DOESN'T WORK!!!!"""
+        if units_idx.values.sum() >= min_n_cell:
+            
+            ### This is where the cross validation starts
+            #first we set up the train and test set for both datasets
+            #
+            
+            #getting CV indices for SG separately because it has different size than NS
+            fold = 0
+            sgcv = kcv.split(spikes_zsc_sg)
+            for train_ind_ns,test_ind_ns in kcv.split(spikes_zsc_ns):
+                fold+=1
+                
+                train_ind_ns = train_ind_ns.reshape(train_ind_ns.shape[0],1)
+                test_ind_ns  = test_ind_ns.reshape(test_ind_ns.shape[0],1)
+                
+                train_ns,test_ns = zscore(spikes_zsc_ns[train_ind_ns,units_idx]),zscore(spikes_zsc_ns[test_ind_ns,units_idx])
+                labels_ns_train,labels_ns_test = ns_labels[train_ind_ns],ns_labels[test_ind_ns]
+                
+                train_ind_sg,test_ind_sg = next(sgcv)
+                train_ind_sg = train_ind_sg.reshape(train_ind_sg.shape[0],1)
+                test_ind_sg  = test_ind_sg.reshape(test_ind_sg.shape[0],1)
+                
+                train_sg,test_sg = zscore(spikes_zsc_sg[train_ind_sg,units_idx]),zscore(spikes_zsc_sg[test_ind_sg,units_idx])
+                
+                labels_sg_train,labels_sg_test = sg_labels[train_ind_sg],sg_labels[test_ind_sg]
+                
+                #zeroing any cell that was nan (i.e. no activity)
+                train_ns[np.isnan(train_ns)] = 0
+                test_ns[np.isnan(test_ns)]   = 0
+                train_sg[np.isnan(train_sg)] = 0
+                test_sg[np.isnan(test_sg)]   = 0
+            
+                """ This block will do ncPCA """
+                # fitting ncPCA to train set
+                ncPCA_mdl = ncPCA(basis_type='intersect',Nshuffle=0)
+                ncPCA_mdl.fit(train_sg,train_ns)
+                if ncPCA_mdl.number_of_shared_basis==0:
+                    continue #this could be a cause of some brain areas having less than 5 folds
+                
+                loadings_ncpca = ncPCA_mdl.loadings_
+                _,temp_fw_ns, temp_bw_ns =  utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns, labels_ns_test,
+                                             loadings_ncpca, analysis='both',step_size=1)
 
-        if sum(units_idx.values) >= min_n_cell:
-            X_fw_ns,S = ncPCA(spikes_binned_sg[:,units_idx],spikes_binned_ns[:,units_idx])
-            X_bw_ns = np.flip(X_fw_ns, axis=1)
-            X_ = {'X_fw_ns':X_fw_ns, 'X_bw_ns':X_bw_ns}
-
-            _,_,Vns = np.linalg.svd(spikes_zsc_ns[:,units_idx],full_matrices=False)
-
-            n_components = X_fw_ns.shape[0]
-            mdl = CPCA(n_components)
-            projected_data, alpha_values = mdl.fit_transform(spikes_binned_ns[:,units_idx], spikes_binned_sg[:,units_idx], return_alphas= True)
-            brain_area_dict['alpha_value_of_fw_ns'+array_of_ba[aa]] = alpha_values
-
-            scores_vns_ns = np.empty((5,len(Vns)))
-            scores_x_fw_ns = np.empty((5, len(Vns)))
-            scores_x_bw_ns = np.empty((5,len(Vns)))
-            scores_cpca_ns = np.empty((len(alpha_values),5,len(Vns)))
-
-
-            for aaa in np.arange(len(Vns)):
-                PCA_ = np.dot(spikes_zsc_ns[:,units_idx],Vns[:aaa+1,:].T)
-                PCA_x_train, PCA_x_test, PCA_y_train, PCA_y_test = train_test_split(
-                PCA_, ns_labels, test_size=0.3, random_state=0)
-                clf_vns = svm.SVC().fit(PCA_x_train, PCA_y_train) # PCA
-                scores_vns_ns[:, aaa] = cross_val_score(clf_vns, PCA_x_test, PCA_y_test, cv=5)
-
-                for X in X_:
-                    ncPCA_= np.dot(spikes_zsc_ns[:,units_idx],X[:,:aaa+1])
-                    ncPCA_x_train, ncPCA_x_test, ncPCA_y_train, ncPCA_y_test = train_test_split(
-                    ncPCA_, ns_labels, test_size=0.3, random_state=0)
-                    clf_x = svm.SVC().fit(ncPCA_x_train, ncPCA_y_train) # ncPCA
-
-                    if str(X)=='X_fw_ns':
-                        scores_x_fw_ns[:,aaa] = cross_val_score(clf_x,ncPCA_x_test, ncPCA_y_test,cv=5)
-
-                    if str(X) == 'X_bw_ns':
-                        scores_x_bw_ns[:, aaa] = cross_val_score(clf_x, ncPCA_x_test, ncPCA_y_test, cv=5)
-
-
-            for alpha in np.arange(len(alpha_values)):
-
-                fg_cov = spikes_zsc_ns[:,units_idx].T.dot(spikes_zsc_ns[:,units_idx])/(spikes_zsc_ns[:,units_idx].shape[0]-1)
-                bg_cov = spikes_zsc_sg[:,units_idx].T.dot(spikes_zsc_sg[:,units_idx])/(spikes_zsc_sg[:,units_idx].shape[0]-1)
-                sigma = fg_cov - alpha_values[alpha]*bg_cov
-                w, v = LA.eig(sigma)
-                eig_idx = np.argpartition(w, -n_components)[-n_components:]
-                eig_idx = eig_idx[np.argsort(-w[eig_idx])]
-                v_top = v[:,eig_idx]
-
-                for aaa in np.arange(len(Vns)):
-
-                    cPCA_= np.dot(spikes_zsc_ns[:,units_idx],v_top[:,:aaa+1])
-                    cPCA_x_train, cPCA_x_test, cPCA_y_train, cPCA_y_test = train_test_split(
-                    cPCA_, ns_labels, test_size=0.3, random_state=0)
-                    clf_cpca = svm.SVC().fit(cPCA_x_train, cPCA_y_train) # cPCA
-                    scores_cpca_ns[alpha,:,aaa] = cross_val_score(clf_cpca,cPCA_x_test, cPCA_y_test,cv=5)
-
-            brain_area_dict['scores_x_fw_ns_' + array_of_ba[aa]] = scores_x_fw_ns
-            brain_area_dict['scores_x_bw_ns_'+array_of_ba[aa]] = scores_x_bw_ns
-            brain_area_dict['scores_vns_ns_'+array_of_ba[aa]] = scores_vns_ns
-            brain_area_dict['scores_cpca_ns_'+array_of_ba[aa]] = scores_cpca_ns
-
-
-    #############
-
-    # fw sg and bw sg cPCA loadings, sg PCA loadings and sg cPCA loadings
-
-    for aa in np.arange(len(array_of_ba)):
-        # units_idx = spikes_info["ecephys_structure_acronym"] == array_of_ba[aa]
-
-        if sum(units_idx.values) >= min_n_cell:
-            X_fw_sg, _ = ncPCA(spikes_binned_ns[:, units_idx], spikes_binned_sg[:, units_idx])
-            X_bw_sg = np.flip(X_fw_sg, axis=1)
-            X_ = {'X_fw_sg':X_fw_sg, 'X_bw_sg':X_bw_sg}
-
-            _, _, Vns = np.linalg.svd(spikes_zsc_sg[:, units_idx], full_matrices=False)
-
-            n_components = X_fw_sg.shape[0]
-            mdl = CPCA(n_components)
-            projected_data, alpha_values = mdl.fit_transform(spikes_binned_sg[:, units_idx],
-                                                             spikes_binned_ns[:, units_idx], return_alphas=True)
-            brain_area_dict['alpha_value_of_fw_sg' + array_of_ba[aa]] = alpha_values
-
-            scores_vns_sg = np.empty((5, len(Vns)))
-            scores_x_fw_sg = np.empty((5, len(Vns)))
-            scores_x_bw_sg = np.empty((5, len(Vns)))
-            scores_cpca_sg = np.empty((len(alpha_values), 5, len(Vns)))
-
-            for aaa in np.arange(len(Vns)):
-                PCA_ = np.dot(spikes_zsc_sg[:, units_idx], Vns[:aaa+1,:].T)
-                PCA_x_train, PCA_x_test, PCA_y_train, PCA_y_test = train_test_split(
-                    PCA_, sg_labels, test_size=0.3, random_state=0)
-                clf_vns = svm.SVC().fit(PCA_x_train, PCA_y_train)  # PCA
-                scores_vns_sg[:, aaa] = cross_val_score(clf_vns, PCA_x_test, PCA_y_test, cv=5)
-
-                for X_keys, X_items in X_.items():
-                    ncPCA_ = np.dot(spikes_zsc_sg[:, units_idx], X_items[:,:aaa+1])
-                    ncPCA_x_train, ncPCA_x_test, ncPCA_y_train, ncPCA_y_test = train_test_split(
-                        ncPCA_, sg_labels, test_size=0.3, random_state=0)
-                    clf_x = svm.SVC().fit(ncPCA_x_train, ncPCA_y_train)  # ncPCA
-
-                    if X_keys == 'X_fw_sg':
-                        scores_x_fw_sg[:, aaa] = cross_val_score(clf_x, ncPCA_x_test, ncPCA_y_test, cv=5)
-
-                    if X_keys == 'X_bw_sg':
-                        scores_x_bw_sg[:, aaa] = cross_val_score(clf_x, ncPCA_x_test, ncPCA_y_test, cv=5)
-
-            for alpha in np.arange(len(alpha_values)):
-
-                fg_cov = spikes_zsc_sg[:, units_idx].T.dot(spikes_zsc_ns[:, units_idx]) / (
-                            spikes_zsc_sg[:, units_idx].shape[0] - 1)
-                bg_cov = spikes_zsc_ns[:, units_idx].T.dot(spikes_zsc_sg[:, units_idx]) / (
-                            spikes_zsc_ns[:, units_idx].shape[0] - 1)
-                sigma = fg_cov - alpha_values[alpha] * bg_cov
-                w, v = LA.eig(sigma)
-                eig_idx = np.argpartition(w, -n_components)[-n_components:]
-                eig_idx = eig_idx[np.argsort(-w[eig_idx])]
-                v_top = v[:, eig_idx]
-
-                for aaa in np.arange(len(Vns)):
-                    cPCA_ = np.dot(spikes_zsc_sg[:, units_idx], v_top[:, :aaa + 1])
-                    cPCA_x_train, cPCA_x_test, cPCA_y_train, cPCA_y_test = train_test_split(
-                        cPCA_, sg_labels, test_size=0.3, random_state=0)
-                    clf_cpca = svm.SVC().fit(cPCA_x_train, cPCA_y_train)  # cPCA
-                    scores_cpca_sg[alpha, :, aaa] = cross_val_score(clf_cpca, cPCA_x_test, cPCA_y_test, cv=5)
-
-            brain_area_dict['scores_x_fw_sg_' + array_of_ba[aa]] = scores_x_fw_sg
-            brain_area_dict['scores_x_bw_sg_' + array_of_ba[aa]] = scores_x_bw_sg
-            brain_area_dict['scores_vns_sg_' + array_of_ba[aa]] = scores_vns_sg
-            brain_area_dict['scores_cpca_sg_' + array_of_ba[aa]] = scores_cpca_sg
+                
+                ncPCs_num,temp_fw_sg, temp_bw_sg =  utils.cumul_error_projected(train_sg, labels_sg_train, test_sg, labels_sg_test,
+                                                 loadings_ncpca, analysis='both',step_size=1)
+                
+                
+                """ This block will calculate the scores for regular PCA """
+                #the PCs for prediction also need to be cross validated
+                _,_,Vns = np.linalg.svd(train_ns,full_matrices=False)
+                _,_,Vsg = np.linalg.svd(train_sg,full_matrices=False)
 
 
-    #%% add dictionary to pickle file
-    file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
+                PCns_num,temp_ns = utils.cumul_accuracy_projected(train_ns, labels_ns_train, test_ns,
+                                                                        labels_ns_test, Vns.T,step_size=1)
+                PCsg_num,temp_sg = utils.cumul_error_projected(train_sg, labels_sg_train, test_sg,
+                                                            labels_sg_test, Vsg.T,step_size=1)
+                
+                scores_total.append(np.concatenate((temp_fw_ns,
+                                                    temp_bw_ns,
+                                                    temp_fw_sg,
+                                                    temp_bw_sg,
+                                                    temp_ns,
+                                                    temp_sg)))
+                #array of PC and ncPC folds
+                track_fold.append(np.concatenate((np.tile(fold,len(temp_fw_ns)),
+                                                 np.tile(fold,len(temp_bw_ns)),
+                                                 np.tile(fold,len(temp_fw_sg)),
+                                                 np.tile(fold,len(temp_bw_sg)),
+                                                 np.tile(fold,len(temp_ns)),
+                                                 np.tile(fold,len(temp_sg)))))
+                
+                #array of PC and ncPC numbers and order
+                component_num.append(np.concatenate((ncPCs_num,
+                                                 ncPCs_num,
+                                                 ncPCs_num,
+                                                 ncPCs_num,
+                                                 PCns_num,
+                                                 PCsg_num)))
+                
+                #array of method string
+                track_method.append(np.concatenate((np.tile('ncPCA',len(temp_fw_ns)),
+                                                 np.tile('ncPCA',len(temp_bw_ns)),
+                                                 np.tile('ncPCA',len(temp_fw_sg)),
+                                                 np.tile('ncPCA',len(temp_bw_sg)),
+                                                 np.tile('PCAns',len(temp_ns)),
+                                                 np.tile('PCAsg',len(temp_sg)))))
+                
+                #array of fw/bw
+                direction_cumulative.append(np.concatenate((np.tile('fw',len(temp_fw_ns)),
+                                                 np.tile('bw',len(temp_bw_ns)),
+                                                 np.tile('fw',len(temp_fw_sg)),
+                                                 np.tile('bw',len(temp_bw_sg)),
+                                                 np.tile('fw',len(temp_ns)),
+                                                 np.tile('fw',len(temp_sg)))))
+                
+                #array of variable decoded (ns/sg)
+                stim_type.append(np.concatenate((np.tile('NS',len(temp_fw_ns)),
+                                                 np.tile('NS',len(temp_bw_ns)),
+                                                 np.tile('SG',len(temp_fw_sg)),
+                                                 np.tile('SG',len(temp_bw_sg)),
+                                                 np.tile('NS',len(temp_ns)),
+                                                 np.tile('SG',len(temp_sg)))))
+                
+                #number of unitts in this session/brain area
+                number_units.append(np.tile(sum(units_idx.values),len(temp_fw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg)))
+                #brain area name
+                brain_area_name.append(np.tile(ba_name,len(temp_fw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg)))
+                
+                #session name
+                session_name.append(np.tile(session_id,len(temp_fw_ns)+len(temp_bw_ns)+
+                                                      len(temp_fw_sg)+len(temp_bw_sg)+
+                                                      len(temp_ns)+len(temp_sg)))
+                
+            # save another dict with the PC and ncPCA loadings
+                loadings_dict['ncPCA'].append(loadings_ncpca)
+                loadings_dict['PCns'].append(Vns.T)
+                loadings_dict['PCsg'].append(Vsg.T)
+                loadings_dict['brain_area'].append(ba_name)
+                loadings_dict['session'].append(session_id)\
 
-    # saving the brain_area_dict file
-    with open(file_path, 'wb') as handle:
-         pickle.dump(brain_area_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+"saving the main results"
+main_results = {}
+main_results['scores']            = np.hstack(scores_total)
+main_results['folds']             = np.hstack(track_fold) 
+main_results['PC_number']         = np.hstack(component_num)
+main_results['Method']            = np.hstack(track_method)
+main_results['direction']         = np.hstack(direction_cumulative)
+main_results['stim_type']         = np.hstack(stim_type)
+main_results['units_number']      = np.hstack(number_units)
+main_results['brain_region_name'] = np.hstack(brain_area_name)
+main_results['session_name']      = np.hstack(session_name)
+
+#%% add dictionary to pickle file
+#file_path = r"\home\pranjal\Documents\pkl_sessions" + "\\" + str(session_id)
+# saving the brain_area_dict file
+
+df= pd.DataFrame(data=main_results)
+with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'wb') as handle:
+         pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # TODO: add plotting code
-#%% plotting
-dir_list = os.listdir(r"/home/pranjal/Documents/pkl_sessions")
-session_id = []
-# for i in dir_list:
-#     try:
-#         x = list(i)[0:9]
-#         c = ''.join(map(str, x))
-#         session_id.append((int(c)))
-#
-#     except:
-#         continue
-#
-# session_id = session_id
-#
-# units_file = r"/home/pranjal/Documents/pkl_sessions/array_units"
-# with open(file, 'rb') as array_units:
-#     array_units = pickle.load(array_units)
+
+#%% reading file
+#with open('/mnt/SSD4TB/ncPCA_files/dataframe_AIBO_cumul_accuracy.pickle', 'rb') as handle:
+#     x = pickle.load(handle)
+
+
+#%% parameters for plotting
+rcParams['figure.dpi'] = 500
+rcParams['lines.linewidth'] = 2.5
+rcParams['axes.linewidth']  = 1.5
+rcParams['font.size'] = 12
+
