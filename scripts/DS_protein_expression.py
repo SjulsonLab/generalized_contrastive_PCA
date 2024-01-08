@@ -10,7 +10,6 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import *
 from matplotlib.colors import ListedColormap
 import contrastive
 import seaborn as sns
@@ -19,13 +18,13 @@ import seaborn as sns
 #%% setting up constant variables for the rest of the code
 # repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
 # data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\"
-data_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\datasets\\from_cPCA_paper\\"
-folder_save_plot = "C:\\Users\\fermi\\Dropbox\\figures_ncPCA\\cPCA_paper_results\\"
+repo_dir = r'C:\Users\fermi\Documents\GitHub\generalized_contrastive_PCA'
+data_dir = r'C:\Users\fermi\Documents\GitHub\generalized_contrastive_PCA\datasets\from_cPCA_paper'
+folder_save_plot = r'C:\Users\fermi\Dropbox\figures_gcPCA\cPCA_paper_results'
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
-rcParams['figure.dpi'] = 200
-rcParams.update({'font.size': 22})
+plt.rcParams['figure.dpi'] = 200
+plt.rcParams.update({'font.size': 22})
 #%% importing ncPCA
 sys.path.append(repo_dir)
 from contrastive_methods import gcPCA
@@ -64,8 +63,27 @@ background = (background-np.mean(background,axis=0)) / np.std(background,axis=0)
 
 # style.use('default')
 mdl = contrastive.CPCA()
-projected_data = mdl.fit_transform(target, background, plot=True,colors=['w','r'], active_labels=sub_group_labels)
+projected_data = mdl.fit_transform(target, background, plot=True,colors=['k','r'], active_labels=sub_group_labels)
 
+#%%
+sub_group_labels= np.array(sub_group_labels)
+a = np.where(sub_group_labels == 0)
+b = np.where(sub_group_labels == 1)
+
+# sns.set_style("ticks")
+# sns.set_context("talk")
+# style.use('default')
+gcPCA_mdl = gcPCA(method='v1',alpha=4,normalize_flag=False)
+gcPCA_mdl.fit(target,background)
+
+gcPCs_all = gcPCA_mdl.loadings_
+plt.figure()
+target_projected = gcPCA_mdl.Ra_scores_
+plt.scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
+plt.scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
+plt.legend()
 #%% running gcPCA v4
 
 sub_group_labels= np.array(sub_group_labels)
@@ -75,87 +93,78 @@ b = np.where(sub_group_labels == 1)
 # sns.set_style("ticks")
 # sns.set_context("talk")
 # style.use('default')
-
-#X,S = ncPCA_mdl.ncPCA_orth(background,target)
-#X, S = ncPCA(background, target)
-
-#plotting ncPCA
-#target_projected = np.dot(target,X[:,:2])
-
-
-
 gcPCA_mdl = gcPCA(method='v4',normalize_flag=False)
 gcPCA_mdl.fit(target,background)
 
 gcPCs_all = gcPCA_mdl.loadings_
-figure()
+plt.figure()
 target_projected = gcPCA_mdl.Ra_scores_
-scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
-scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
-xlabel('gcPC1')
-ylabel('gcPC2')
+plt.scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
+plt.scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
 plt.legend()
 plt.savefig(folder_save_plot+"DS_data_gcPCAv4.pdf", transparent=True)
 #%% running PCA to test
 U,S,V = np.linalg.svd(target,full_matrices=False)
-figure()
+plt.figure()
 target_projected = U
-scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
-scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
-xlabel('PC1')
-ylabel('PC2')
+plt.scatter(target_projected[a,0], target_projected[a,1],s=80, label = 'control', color = 'k',alpha=0.9,edgecolors=None)
+plt.scatter(target_projected[b,0], target_projected[b,1],s=80, label = 'DS', color = 'r', alpha=0.9,edgecolors=None)
+plt.xlabel('PC1')
+plt.ylabel('PC2')
 plt.legend()
 
 plt.savefig(folder_save_plot+"DS_data_PCA.pdf", transparent=True)
 #%% running and plotting ncPCA
 
-sub_group_labels= np.array(sub_group_labels)
-a = np.where(sub_group_labels == 0)
-b = np.where(sub_group_labels == 1)
+# sub_group_labels= np.array(sub_group_labels)
+# a = np.where(sub_group_labels == 0)
+# b = np.where(sub_group_labels == 1)
 
-sns.set_style("ticks")
-sns.set_context("notebook")
-style.use('dark_background')
+# sns.set_style("ticks")
+# sns.set_context("notebook")
+# style.use('dark_background')
 
-#X,S = ncPCA_mdl.ncPCA_orth(background,target)
-#X, S = ncPCA(background, target)
+# #X,S = ncPCA_mdl.ncPCA_orth(background,target)
+# #X, S = ncPCA(background, target)
 
-#plotting ncPCA
-#target_projected = np.dot(target,X[:,:2])
+# #plotting ncPCA
+# #target_projected = np.dot(target,X[:,:2])
 
 
-figure()
-ncPCA_mdl = ncPCA(basis_type='all')
-ncPCA_mdl.fit(background,target)
-target_projected = ncPCA_mdl.N2_scores_
+# figure()
+# ncPCA_mdl = ncPCA(basis_type='all')
+# ncPCA_mdl.fit(background,target)
+# target_projected = ncPCA_mdl.N2_scores_
 
-subplot(1,3,1,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
-scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
-xlabel('ncPC1')
-ylabel('ncPC2')
-title('all basis')
-plt.legend()
+# subplot(1,3,1,aspect='equal')
+# scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
+# scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+# xlabel('ncPC1')
+# ylabel('ncPC2')
+# title('all basis')
+# plt.legend()
 
-ncPCA_mdl = ncPCA(basis_type='union')
-ncPCA_mdl.fit(background,target)
-target_projected = ncPCA_mdl.N2_scores_
+# ncPCA_mdl = ncPCA(basis_type='union')
+# ncPCA_mdl.fit(background,target)
+# target_projected = ncPCA_mdl.N2_scores_
 
-subplot(1,3,2,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
-scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
-xlabel('ncPC1')
-title('union')
+# subplot(1,3,2,aspect='equal')
+# scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
+# scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+# xlabel('ncPC1')
+# title('union')
 
-ncPCA_mdl = ncPCA(Nshuffle=10000,basis_type='intersect')
-ncPCA_mdl.fit(background,target)
-target_projected = ncPCA_mdl.N2_scores_
+# ncPCA_mdl = ncPCA(Nshuffle=10000,basis_type='intersect')
+# ncPCA_mdl.fit(background,target)
+# target_projected = ncPCA_mdl.N2_scores_
 
-subplot(1,3,3,aspect='equal')
-scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
-scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
-xlabel('ncPC1')
-title('intersect')
+# subplot(1,3,3,aspect='equal')
+# scatter (target_projected[a,0], target_projected[a,1], label = 'control', color = 'w',alpha=0.7)
+# scatter (target_projected[b,0], target_projected[b,1], label = 'DS', color = 'r', alpha=0.7)
+# xlabel('ncPC1')
+# title('intersect')
 
 # #%% testing the sorting
 # test = ncPCA_mdl.ncPCA_values_null_

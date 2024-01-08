@@ -21,7 +21,7 @@ import sys
 import seaborn as sns
 import random
 
-repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\normalized_contrastive_PCA\\" #repository dir
+repo_dir = "C:\\Users\\fermi\\Documents\\GitHub\\generalized_contrastive_PCA\\" #repository dir
 sys.path.append(repo_dir)
 from contrastive_methods import gcPCA
 from ncPCA_project_utils import cosine_similarity_multiple_vectors

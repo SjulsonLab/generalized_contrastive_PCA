@@ -26,8 +26,8 @@ import seaborn as sns
 repo_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/" #repository dir
 data_dir = "/home/eliezyer/Documents/github/normalized_contrastive_PCA/datasets/from_cPCA_paper/"
 sys.path.append(repo_dir)
-from ncPCA import ncPCA
-from ncPCA import cPCA
+from gcPCA import gcPCA
+from gcPCA import cPCA
 #%%
 #define an accuracy function to be minimized
 cvfold = StratifiedKFold(shuffle=True)

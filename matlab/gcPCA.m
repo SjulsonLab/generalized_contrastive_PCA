@@ -20,6 +20,9 @@ function [B, S, X] = gcPCA(Za, Zb, gcPCAversion, varargin)
 %                   distribution of S
 % Ncalc          -- (optional) maximum number of gcPCs to calculate (useful
 %                   only for orthogonal gcPCA, which is iterative)
+% normalize      -- (optional) logical variable to normalize the data or
+%                   not, default true. Remeber to at least center your data 
+%                   if turning this off.
 % 
 % OUTPUTS
 % B (struct)     -- gcPCA scores (different for Za and Zb)
@@ -50,12 +53,16 @@ pars.addRequired('gcPCAversion');
 pars.addOptional('Nshuffle', 0, @isnumeric);
 pars.addOptional('normalize', true, @islogical);
 pars.addOptional('Ncalc', Inf, @isnumeric);
-pars.addOptional('maxcond', 10^13, @isnumeric); % you shouldn't need to change this, but it's condition number we regularize the denominator matrix to if it's ill-conditioned
+pars.addOptional('alpha', 1, @isnumeric);
+pars.addOptional('maxcond', 10^13, @isnumeric); % you shouldn't need to change this, but it's condition number to regularize the denominator matrix if it's ill-conditioned
+pars.addOptional('rPCAkeep',1,@isnumeric); %this parameter is to control the amount of variance you want the original PCs to explain, 1 for full data
 pars.parse('Za', 'Zb', 'gcPCAversion', varargin{:});
 maxcond = pars.Results.maxcond;
 Ncalc = pars.Results.Ncalc;
+alpha = pars.Results.alpha;
 Nshuffle = pars.Results.Nshuffle;
 normalize_flag = pars.Results.normalize;
+rPCAkeep = pars.Results.rPCAkeep; %this is important if you want to exclude very low variance and unstable PCs from your data
 
 %% Step 1: normalize inputs if necessary
 N = size(Zb, 2); % number of dimensions
@@ -76,6 +83,17 @@ if normalize_flag
         Za = Za_temp;
     end
     clear Zb_temp Za_temp
+end
+
+%% keep only the PCs that explain r amount of variance
+if rPCAkeep < 1
+   [ua,sa,va] = svd(Za,'econ');
+   [ub,sb,vb] = svd(Zb,'econ');
+   
+   na = cumsum(diag(sa)./sum(sa(:)))<rPCAkeep; % n pcs to keep
+   nb = cumsum(diag(sb)./sum(sb(:)))<rPCAkeep; % n pcs to keep
+   Za = ua(:,na)*sa(na,na)*va(:,na)';
+   Zb = ub(:,nb)*sb(nb,nb)*vb(:,nb)';
 end
 %% Step 2: do SVD and discard dimensions if necessary
 p = min(size(Za, 1), size(Zb, 1)); % we use the p from whichever dataset has fewer datapoints
@@ -113,83 +131,102 @@ else
     Niter = 1;
 end
 
-denom_well_conditioned = false;
-
-for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates once
-
-    % calculate numerator and denominator for objective function
+if gcPCAversion == 1
     ZaJ = Za * J; % projecting into lower-D subspace spanned by J
     ZbJ = Zb * J;
     
-    if gcPCAversion == 2 || gcPCAversion == 2.1 % calculating gcPCA using Ra/Rb objective function
-        numerator = ZaJ'*ZaJ; % calculating the lower-D covariance matrices
-        denominator = ZbJ'*ZbJ;
-        obj_info = 'Ra ./ Rb';
-
-    elseif gcPCAversion == 3 || gcPCAversion == 3.1 % calculating gcPCA using (Ra-Rb)/Rb objective function
-        numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
-        denominator = ZbJ'*ZbJ;
-        obj_info = '(Ra-Rb) ./ Rb';
-
-    elseif gcPCAversion == 4 || gcPCAversion == 4.1 % calculating gcPCA using (Ra-Rb)/(Ra+Rb) objective function
-        numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
-        denominator = ZaJ'*ZaJ + ZbJ'*ZbJ;
-        obj_info = '(Ra-Rb) ./ (Ra+Rb)';
-    end
+    AA = ZaJ'*ZaJ;
+    BB = ZbJ'*ZbJ;
+    obj_info = 'Ra - alpha*Rb';
     clear ZaJ ZbJ
-
-    % diagonal loading the denominator matrix if it's ill-conditioned. If
-    % we're iterating, we only need to test it until it's well-conditioned
-    % once, and it will always be well-conditioned after that
-    if denom_well_conditioned == false 
-        denom_SVspectrum = svd(denominator);
-        if max(denom_SVspectrum)/min(denom_SVspectrum) > maxcond % matrix ill-conditioned
-            warning('Denominator matrix ill-conditioned. Regularizing...')
-            alpha = max(denom_SVspectrum)/maxcond - min(denom_SVspectrum); % approximately correct, close enough
-            denominator = denominator + alpha * eye(size(denominator));
-        else
-            denom_well_conditioned = true;
-        end
-        clear denom_SVspectrum alpha
-    end
-
-    % calculating the gcPCs
-    M = sqrtm(denominator);
-    clear denominator
-    [y, D] = eig(M \ numerator / M); 
-%     [y, D] = eig(inv(M) * numerator * inv(M)); 
-    clear numerator
-%     y = real(y); % there can be tiny imaginary parts due to numerical instability
-%     D = real(diag(D));
-    [D, sortidx] = sort(diag(D), 'descend');
+    
+    sigma = AA - alpha*BB;
+    [y, D] = eig(sigma);
+    [~, sortidx] = sort(diag(D), 'descend');
     clear D
     y = y(:, sortidx);
-
+    
     % the matrix of gcPCs
-    Xtemp = normalize(J / M * y, 'norm');
-    clear M
-
-    % copy results to X
-    if idx == 1
-        X = Xtemp;
-        Xorth = []; % orthogonal version of X
+    X = normalize(J * y, 'norm');
+    
+else
+    denom_well_conditioned = false;
+    
+    for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates once
+        
+        % calculate numerator and denominator for objective function
+        ZaJ = Za * J; % projecting into lower-D subspace spanned by J
+        ZbJ = Zb * J;
+        
+        if gcPCAversion == 2 || gcPCAversion == 2.1 % calculating gcPCA using Ra/Rb objective function
+            numerator = ZaJ'*ZaJ; % calculating the lower-D covariance matrices
+            denominator = ZbJ'*ZbJ;
+            obj_info = 'Ra ./ Rb';
+            
+        elseif gcPCAversion == 3 || gcPCAversion == 3.1 % calculating gcPCA using (Ra-Rb)/Rb objective function
+            numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
+            denominator = ZbJ'*ZbJ;
+            obj_info = '(Ra-Rb) ./ Rb';
+            
+        elseif gcPCAversion == 4 || gcPCAversion == 4.1 % calculating gcPCA using (Ra-Rb)/(Ra+Rb) objective function
+            numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
+            denominator = ZaJ'*ZaJ + ZbJ'*ZbJ;
+            obj_info = '(Ra-Rb) ./ (Ra+Rb)';
+        end
+        clear ZaJ ZbJ
+        
+        % diagonal loading the denominator matrix if it's ill-conditioned. If
+        % we're iterating, we only need to test it until it's well-conditioned
+        % once, and it will always be well-conditioned after that
+        if denom_well_conditioned == false
+            denom_SVspectrum = svd(denominator);
+            if max(denom_SVspectrum)/min(denom_SVspectrum) > maxcond % matrix ill-conditioned
+                warning('Denominator matrix ill-conditioned. Regularizing...')
+                alpha = max(denom_SVspectrum)/maxcond - min(denom_SVspectrum); % approximately correct, close enough
+                denominator = denominator + alpha * eye(size(denominator));
+            else
+                denom_well_conditioned = true;
+            end
+            clear denom_SVspectrum alpha
+        end
+        
+        % calculating the gcPCs
+        M = sqrtm(denominator);
+        clear denominator
+        [y, D] = eig(M \ numerator / M);
+        %     [y, D] = eig(inv(M) * numerator * inv(M));
+        clear numerator
+        %     y = real(y); % there can be tiny imaginary parts due to numerical instability
+        %     D = real(diag(D));
+        [D, sortidx] = sort(diag(D), 'descend');
+        clear D
+        y = y(:, sortidx);
+        
+        % the matrix of gcPCs
+        Xtemp = normalize(J / M * y, 'norm');
+        clear M
+        
+        % copy results to X
+        if idx == 1
+            X = Xtemp;
+            Xorth = []; % orthogonal version of X
+        end
+        Xorth(:, idx) = Xtemp(:, 1);
+        clear Xtemp
+        
+        % shrinking J (find an orthonormal basis for the subspace of J orthogonal
+        % to the X vectors we have already collected)
+        [J, ~] = svd(Jorig - Xorth * (Xorth' * Jorig), 'econ');
+        J = J(:,1:Niter-idx);
+        
     end
-    Xorth(:, idx) = Xtemp(:, 1);
-    clear Xtemp
-
-    % shrinking J (find an orthonormal basis for the subspace of J orthogonal
-    % to the X vectors we have already collected)
-    [J, ~] = svd(Jorig - Xorth * (Xorth' * Jorig), 'econ');
-    J = J(:,1:Niter-idx); 
-
+    
+    if Niter > 1 % returning the orthogonalized version
+        % Xorig = X; % this is the original non-orthogonal X for comparison
+        X = Xorth;
+    end
+    clear Xorth
 end
-
-if Niter > 1 % returning the orthogonalized version
-    % Xorig = X; % this is the original non-orthogonal X for comparison
-    X = Xorth;
-end
-clear Xorth
-
 %% gathering variables to return
 
 % calculating the B's here so we can clear Za and Zb from RAM prior to
@@ -199,7 +236,7 @@ B.b = Zb * X;
 B.a = Za * X;
 
 % extracting the diagonal weight matrices (I shouldn't call these Ra and Rb)
-Ra = vecnorm(B.a)';
+Ra = vecnorm(B.a)'; %luke's implementation
 Rb = vecnorm(B.b)';
 
 % normalizing the columns of the B's
@@ -234,20 +271,32 @@ if Nshuffle > 0
     S.b      = zeros(N_gcPCs, 1);
     S.b_shuf = zeros(N_gcPCs, Nshuffle);
 
-    Zb_shuf = Zb(:, randperm(size(Zb, 2))); % shuffling columns
-    clear Zb % we will keep only the shuffled version in RAM
-
+    for a = 1:size(Za,2)
+        Za_shuf(:,a) = Za(randperm(size(Za, 1)), a); % shuffling rows
+        Zb_shuf(:,a) = Zb(randperm(size(Zb, 1)), a); % shuffling rows
+    end
+    clear Za Zb % we will keep only the shuffled version in RAM
+    
+%     Zb_shuf = Zb(:, randperm(size(Zb, 2))); % shuffling columns
+%     clear Zb
     for shufidx = 1:Nshuffle
+        
+    for a = 1:size(Za_shuf,2)
+        Za_shuf(:,a) = Za_shuf(randperm(size(Za_shuf, 1)), a); % shuffling rows
+        Zb_shuf(:,a) = Zb_shuf(randperm(size(Zb_shuf, 1)), a); % shuffling rows
+    end
+    
+        [~, S_shuf] = gcPCA(Za_shuf, Zb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
 
-        Zb_shuf = Zb_shuf(:, randperm(size(Zb_shuf, 2))); % shuffling columns
-
-        [~, S_shuf] = gcPCA(Za, Zb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
+%         Zb_shuf = Zb_shuf(:, randperm(size(Zb_shuf, 2))); % shuffling columns
+%         [~, S_shuf] = gcPCA(Za, Zb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
 
         S.objval_shuf(:, shufidx) = S_shuf.objval;
         S.a_shuf(:, shufidx) = S_shuf.a;
         S.b_shuf(:, shufidx) = S_shuf.b;
-        disp(['Shuffle # ' num2str(shufidx) ' completed']);
-    end
+        disp(['Shuffle # ' num2str(shufidx) ' completed']);        
+        
+    end 
 
 end
 
