@@ -42,8 +42,6 @@ class gcPCA():
                  normalize_flag=True,
                  alpha=1,
                  alpha_null=0.975,
-                 tol=1e-8,
-                 max_steps=1000,
                  cond_number=10**13):
 
         self.method = method
@@ -53,8 +51,6 @@ class gcPCA():
         self.alpha_null = alpha_null
         self.cond_number = cond_number
         self.Ncalc = Ncalc
-        self.tol = tol
-        self.max_steps = max_steps
         self.Ra = None
         self.Rb = None
 
@@ -461,7 +457,11 @@ class sparse_gcPCA():
 
             # Solving gcPCA
             """solve sparse Y, then find x = J' M^-1 Y"""
-            M = sqrtm(J@denominator@J.T)  # EFO: projecting back to neural space
+            JdenJ = J@denominator@J.T  # EFO: projecting back to neural space
+            
+            #getting the square root matrix of denominator
+            d, e = LA.eigh(JdenJ)
+            M = e @ np.sqrt(d) * e.T
             
             y = M@self.original_loadings_
             sigma = LA.multi_dot((LA.inv(M).T,J,numerator,J.T,LA.inv(M))) # EFO: projecting back to neural space
@@ -489,10 +489,10 @@ class sparse_gcPCA():
 
             # Square root matrix of sigma plus
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e @ np.sqrt(np.diag(new_d_pos+alpha_pos)) @ e.T
+            Mpos = e @ np.sqrt(new_d_pos+alpha_pos) * e.T
             
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e @ np.sqrt(np.diag(new_d_neg+alpha_neg)) @ e.T
+            Mneg = e @ np.sqrt(new_d_neg+alpha_neg) * e.T
 
             if n_gcpcs_pos > 0:
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
