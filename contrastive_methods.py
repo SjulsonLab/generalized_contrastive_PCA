@@ -185,7 +185,7 @@ class gcPCA():
                 # Solving gcPCA
                 d, e = LA.eigh(denominator)
                 # M = sqrtm(denominator) #sqrtm is failing with large matrices, aprox problems?
-                M = e.T @ np.sqrt(d) * e 
+                M = e @ np.sqrt(d) * e.T
                 sigma = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M)))
                 # Getting eigenvectors
                 w, v = LA.eigh(sigma)
@@ -244,10 +244,6 @@ class gcPCA():
         # Shuffling to define a null distribution
         if self.Nshuffle > 0:
             self.null_distribution()
-            
-        # solving sparse gcPCA if user requested
-        # if self.sparse_gcPCA:
-        #     self.sparse_fitting()
         
     def null_distribution(self):
         import copy
@@ -390,10 +386,10 @@ class sparse_gcPCA():
             new_d_neg = new_d_neg * -1  # Flipping the sign of negative eigenvalues
 
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e @ np.sqrt(np.diag(new_d_pos+alpha_pos)) @ e.T
+            Mpos = e @ np.sqrt(new_d_pos+alpha_pos) * e.T
             
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e @ np.sqrt(np.diag(new_d_neg+alpha_neg)) @ e.T
+            Mneg = e @ np.sqrt(new_d_neg+alpha_neg) * e.T
             
             # if the user didn't input anything, provide a default lambda vector
             lambda_array = np.exp(np.linspace(np.log(1e-2), np.log(1), num=10))
