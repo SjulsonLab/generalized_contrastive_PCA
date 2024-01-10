@@ -8,9 +8,7 @@ script to test sparse gcPCA
 """
 
 
-#%% first testing sparse cPCA with toy data from Abid et al
-
-# TODO: improve toy dataset to merge clusters during cPCA
+#%% first testing sparse gcPCA with toy data from Abid et al
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,7 +50,8 @@ sub_group_labels_ = [0]*100+[1]*100+[2]*100+[3]*100
 
 
 # getting ncPCA loadings
-sys.path.append(r"C:\Users\fermi\Documents\GitHub\generalized_contrastive_PCA")
+# sys.path.append(r"C:\Users\fermi\Documents\GitHub\generalized_contrastive_PCA") # laptopt
+sys.path.append("/home/eliezyer/Documents/github/generalized_contrastive_PCA/") # linux
 from contrastive_methods import gcPCA, sparse_gcPCA
 # fg = target
 # bg = background
@@ -81,7 +80,7 @@ sparse_gcPCA_mdl = sparse_gcPCA(method='v4', normalize_flag=False,Nsparse=2,lamb
 sparse_gcPCA_mdl.fit(fg, bg)
 #%%
 # target_projected = sparse_gcPCA_mdl.Ra@sparse_gcPCA_mdl.sparse_loadings_[7][:, :2]
-target_projected = sparse_gcPCA_mdl.Ra_scores_[7]
+target_projected = sparse_gcPCA_mdl.Ra_scores_[4]
 colors = ['k', 'r', 'g', 'b']
 plt.figure(num=2)
 plt.scatter(target_projected[0:100,0], target_projected[0:100,1], color=colors[0], alpha=0.5)

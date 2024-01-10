@@ -28,7 +28,6 @@ objetive_function_ : Objective function based on the method you picked.
 import warnings
 import numpy as np
 import numpy.linalg as LA
-from scipy.linalg import sqrtm
 
 # %% class for generalized contrastive PCA
 class gcPCA():
@@ -36,7 +35,7 @@ class gcPCA():
     """TO DO
     [ ]add a method for doing fit for multiple alphas and returning multiple models """
 
-    def __init__(self, method='v4.1',
+    def __init__(self, method='v4',
                  Ncalc=np.inf,
                  Nshuffle=0,
                  normalize_flag=True,
@@ -184,8 +183,8 @@ class gcPCA():
                 
                 # Solving gcPCA
                 d, e = LA.eigh(denominator)
-                # M = sqrtm(denominator) #sqrtm is failing with large matrices, aprox problems?
-                M = e @ np.sqrt(d) * e.T
+                M = e * np.sqrt(d) @ e.T  # getting square root matrix M
+                
                 sigma = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M)))
                 # Getting eigenvectors
                 w, v = LA.eigh(sigma)
@@ -288,7 +287,7 @@ class gcPCA():
 # %% class for sparse generalized contrastive PCA
 class sparse_gcPCA():
 
-    def __init__(self, method='v4.1',
+    def __init__(self, method='v4',
                  Ncalc=np.inf,
                  normalize_flag=True,
                  Nsparse=np.inf,
@@ -386,13 +385,10 @@ class sparse_gcPCA():
             new_d_neg = new_d_neg * -1  # Flipping the sign of negative eigenvalues
 
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e @ np.sqrt(new_d_pos+alpha_pos) * e.T
+            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T 
             
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e @ np.sqrt(new_d_neg+alpha_neg) * e.T
-            
-            # if the user didn't input anything, provide a default lambda vector
-            lambda_array = np.exp(np.linspace(np.log(1e-2), np.log(1), num=10))
+            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T
 
             if n_gcpcs_pos > 0:
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
@@ -455,15 +451,19 @@ class sparse_gcPCA():
 
             # Solving gcPCA
             """solve sparse Y, then find x = J' M^-1 Y"""
-            JdenJ = J@denominator@J.T  # EFO: projecting back to neural space
             
-            #getting the square root matrix of denominator
+            ### 
+            JdenJ = J@denominator@J.T  # EFO: projecting back to feature space
+            
+            # # getting the square root matrix of denominator
             d, e = LA.eigh(JdenJ)
-            M = e @ np.sqrt(d) * e.T
+            M = e * np.sqrt(d) @ e.T
             
             y = M@self.original_loadings_
-            sigma = LA.multi_dot((LA.inv(M).T,J,numerator,J.T,LA.inv(M))) # EFO: projecting back to neural space
+            sigma = LA.multi_dot((LA.inv(M).T,J,numerator,J.T,LA.inv(M))) # EFO: projecting back to feature space
 
+            ###
+            
             # Getting eigenvectors
             d, e = LA.eigh(sigma)
             eig_idx = np.argsort(d)[::-1]
@@ -471,7 +471,7 @@ class sparse_gcPCA():
             d = d[eig_idx]
             new_d_pos, new_d_neg = d.copy(), d.copy()
 
-            # Calculating only the requested amount
+            # Calculating only the requested amount by user
             n_gcpcs_pos = np.sum(new_d_pos > 0)
             if (n_gcpcs_pos - self.Nsparse) >= 0:
                 n_gcpcs_pos = self.Nsparse
@@ -487,10 +487,10 @@ class sparse_gcPCA():
 
             # Square root matrix of sigma plus
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e @ np.sqrt(new_d_pos+alpha_pos) * e.T
+            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T
             
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e @ np.sqrt(new_d_neg+alpha_neg) * e.T
+            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T
 
             if n_gcpcs_pos > 0:
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
@@ -577,8 +577,7 @@ class sparse_gcPCA():
 
                     # Solving L1 constrain with least angle regression
                     lasso_mdl = LassoLars(alpha=lmbd,
-                                          fit_intercept=False,
-                                          normalize=False)
+                                          fit_intercept=False)
                     lasso_mdl.fit(M, y)
                     beta.append(lasso_mdl.coef_)
                 betas = np.vstack(beta).T
@@ -588,7 +587,7 @@ class sparse_gcPCA():
                 u, _, v = LA.svd(M @ M.T @ betas, full_matrices=False)
                 A = u @ v
                 # Checking convergence of criterion
-                criterion = np.sum(LA.norm(M - A @ betas.T @ M, axis=0)) + np.sum(lmbd * LA.norm(betas, ord=1, axis=0))
+                criterion = np.sum(LA.norm(M - (A @ betas.T @ M), axis=0)) + np.sum(lmbd * LA.norm(betas, ord=1, axis=0))
                 diff_criterion = np.abs(criterion_past - criterion)
                 criterion_past = criterion.copy()  # update criterion
                 step += 1
