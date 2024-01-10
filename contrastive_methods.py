@@ -183,7 +183,9 @@ class gcPCA():
                         denom_well_conditioned = True
                 
                 # Solving gcPCA
-                M = sqrtm(denominator)
+                d, e = LA.eigh(denominator)
+                # M = sqrtm(denominator) #sqrtm is failing with large matrices, aprox problems?
+                M = e.T @ np.sqrt(d) * e 
                 sigma = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M)))
                 # Getting eigenvectors
                 w, v = LA.eigh(sigma)
