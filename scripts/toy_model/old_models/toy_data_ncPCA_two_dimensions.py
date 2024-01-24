@@ -70,7 +70,12 @@ plt.ylabel('Eigenvalues')
 plt.tight_layout()
 
 #plot to check the cPCA
-plt.figure();plt.plot(np.arange(1,N_features+1),(S_fg-S_bg)/(S_bg))
+plt.figure();plt.plot(np.arange(1,N_features+1),(S_fg-S_bg)/(S_fg+S_bg),color='k')
+sns.despine()
+plt.grid()
+plt.xticks(np.arange(5,N_features+1,step=5))
+plt.xlabel('Dimensions')
+plt.ylabel('(A-B) / (A+B)')
 #%% reconstruct data
 
 data_bg = np.linalg.multi_dot((U,np.diag(S_bg),V.T));
@@ -88,6 +93,7 @@ plt.xlabel('features')
 plt.ylabel('features')
 plt.grid(False)
 plt.savefig(folder_save_plot+"B_cov.pdf", transparent=True)
+plt.savefig(folder_save_plot+"B_cov.png", transparent=True,bbox_inches='tight')
 
 plt.figure();
 plt.imshow(cov_fg-np.diag(np.diag(cov_fg)),cmap='bwr',clim=(-3,3))
@@ -97,6 +103,19 @@ plt.xlabel('features')
 plt.ylabel('features')
 plt.grid(False)
 plt.savefig(folder_save_plot+"A_cov.pdf", transparent=True)
+plt.savefig(folder_save_plot+"A_cov.png", transparent=True,bbox_inches='tight')
+
+plt.figure();
+auxplot = cov_fg - cov_bg;
+auxplot = auxplot - np.diag(np.diag(auxplot))
+plt.imshow(auxplot,cmap='bwr',clim=(-1,1))
+plt.colorbar()
+plt.title('A - B')
+plt.xlabel('features')
+plt.ylabel('features')
+plt.grid(False)
+plt.savefig(folder_save_plot+"A-B_cov.pdf", transparent=True)
+plt.savefig(folder_save_plot+"A-B_cov.png", transparent=True,bbox_inches='tight')
 
 #plot of
 data_fg_increased = U[:,pc_change]*S_fg[pc_change]@V.T[pc_change,:];
@@ -116,6 +135,7 @@ plt.xlabel('features')
 plt.ylabel('features')
 plt.grid(False)
 plt.savefig(folder_save_plot+"increased_in_A.pdf", transparent=True)
+plt.savefig(folder_save_plot+"increased_in_A.png", transparent=True,bbox_inches='tight')
 
 # gcPCA_mdl = gcPCA(method='v1',normalize_flag=False,alpha=1.25)
 gcPCA_mdl = gcPCA(method='v4',normalize_flag=False)
@@ -131,6 +151,7 @@ plt.xlabel('features')
 plt.ylabel('features')
 plt.grid(False)
 plt.savefig(folder_save_plot+"gcPC_recovered_cov.pdf", transparent=True)
+plt.savefig(folder_save_plot+"gcPC_recovered_cov.png", transparent=True,bbox_inches='tight')
 #%% now run cPCA and ncPCA
 
 # cPCs = cPCA(data_bg,data_fg,alpha=1)[:,0]
@@ -211,10 +232,10 @@ plt.figure()
 cpc_eq = SFG-np.multiply(newalpha.T,SBG)
 plt.plot(cpc_eq[np.arange(0,25,5),:].T)
 plt.grid()
-plt.xlabel('PCs')
-plt.ylabel('FG - alpha*BG')
-plt.text(7,0.7,'alpha = '+ str(alphas2use[0])[:4],color='tab:blue',rotation=340)
-plt.text(7,0.3,'alpha = '+ str(alphas2use[1])[:4],color='tab:orange',rotation=-11)
-plt.text(7,0.0,'alpha = '+ str(alphas2use[2])[:4],color='tab:green',rotation=1)
-plt.text(7,-0.5,'alpha = '+ str(alphas2use[3])[:4],color='tab:red',rotation=11)
-plt.text(7,-1,'alpha = '+ str(alphas2use[4])[:4],color='tab:purple',rotation=20)
+plt.xlabel('Dimensions')
+plt.ylabel('A - '+ r'$\alpha$' + '*B')
+plt.text(7,0.75,r'$\alpha$' + ' = '+ str(alphas2use[0])[:4],color='tab:blue',rotation=340)
+plt.text(7,0.35,r'$\alpha$' + ' = '+ str(alphas2use[1])[:4],color='tab:orange',rotation=-11)
+plt.text(7,0.05,r'$\alpha$' + ' = '+ str(alphas2use[2])[:4],color='tab:green',rotation=1)
+plt.text(7,-0.55,r'$\alpha$' + ' = '+ str(alphas2use[3])[:4],color='tab:red',rotation=11)
+plt.text(7,-1.05,r'$\alpha$' + ' = '+ str(alphas2use[4])[:4],color='tab:purple',rotation=20)

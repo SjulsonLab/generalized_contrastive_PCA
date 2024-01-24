@@ -3,7 +3,7 @@
 """
 Created on Thu Dec  8 22:14:08 2022
 
-Script to create toy data to show use of ncPCA
+Script to create toy data to show use of gcPCA
 @author: eliezyer
 
 """

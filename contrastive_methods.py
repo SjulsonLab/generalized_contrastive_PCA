@@ -416,8 +416,12 @@ class sparse_gcPCA():
         else:
             denom_well_conditioned = False
             #  Define numerator and denominator according to the method requested
-            JRaRaJ = LA.multi_dot((J.T, RaRa, J))
-            JRbRbJ = LA.multi_dot((J.T, RbRb, J))
+            # JRaRaJ = LA.multi_dot((J.T, RaRa, J))
+            # JRbRbJ = LA.multi_dot((J.T, RbRb, J))
+            RaJ = self.Ra@J@J.T # reducing data to J
+            RbJ = self.Rb@J@J.T # reducing data to J
+            JRaRaJ = RaJ.T@RaJ
+            JRbRbJ = RbJ.T@RbJ
 
             if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
                 numerator = JRaRaJ
@@ -452,15 +456,17 @@ class sparse_gcPCA():
             # Solving gcPCA
             """solve sparse Y, then find x = J' M^-1 Y"""
             
+            """ This is the original code"""
             ### 
-            JdenJ = J@denominator@J.T  # EFO: projecting back to feature space
+            # JdenJ = J@denominator@J.T  # EFO: projecting back to feature space
             
             # # getting the square root matrix of denominator
-            d, e = LA.eigh(JdenJ)
+            # d, e = LA.eigh(JdenJ)
+            d, e = LA.eigh(denominator)
             M = e * np.sqrt(d) @ e.T
             
             y = M@self.original_loadings_
-            sigma = LA.multi_dot((LA.inv(M).T,J,numerator,J.T,LA.inv(M))) # EFO: projecting back to feature space
+            sigma = LA.multi_dot((LA.inv(M).T,numerator,LA.inv(M))) # EFO: projecting back to feature space
 
             ###
             
@@ -487,10 +493,10 @@ class sparse_gcPCA():
 
             # Square root matrix of sigma plus
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T
-            
+            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T  # this is passing it back to neural space to apply original loadings! > original e* np.sqrt(new_d_pos+alpha_pos) @ e.T
+
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T
+            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T  # this is passing it back to neural space to apply original loadings same original as above ^
 
             if n_gcpcs_pos > 0:
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
@@ -512,16 +518,15 @@ class sparse_gcPCA():
                 if  n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
                     sigma_pos_loadings_ = LA.inv(M) @ Mpos_loadings_[a]
                     sigma_neg_loadings_ = LA.inv(M) @ Mneg_loadings_[a]
+                    # sigma_pos_loadings_ = Mpos_loadings_[a]
+                    # sigma_neg_loadings_ = Mneg_loadings_[a]
                     final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
                 elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
                     sigma_neg_loadings_ = LA.inv(M) @ Mneg_loadings_[a]
+                    # sigma_neg_loadings_ = Mneg_loadings_[a]
                     final_loadings.append(sigma_neg_loadings_)
                 else:
                     sigma_pos_loadings_ = LA.inv(M) @ Mpos_loadings_[a]
-                    """LASSO IS PICKING THE BEST J TO PICK! THAT'S WHY ITS DENSE, 
-                    Y IS ALREADY VERY SPARSE SO LASSO IS NOT CHANGING IT MUCH
-                    when lambda_lasso is low it mixes more PCs and the end result lookssparse
-                    but that's because we are not looking in the right space"""
                     # sigma_pos_loadings_ = Mpos_loadings_[a]
                     final_loadings.append(sigma_pos_loadings_)
             # x_temp = LA.multi_dot((J, LA.inv(m), v))
