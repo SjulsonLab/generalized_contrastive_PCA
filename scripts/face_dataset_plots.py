@@ -342,6 +342,7 @@ ab = AnnotationBbox(im,
 ax.add_artist(ab)
 plt.figtext(0.60, 0.46, 'E', fontsize=40, fontweight='bold')
 plt.savefig("face_expression_figure2.pdf", format="pdf")
+plt.savefig("face_expression_figure2.png", format="png")
 
 # ax.autoscale()
 # #picking a face
