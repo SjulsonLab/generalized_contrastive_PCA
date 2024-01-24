@@ -8,7 +8,7 @@ This file will keep all the functions we use in the
 """
 import numpy as np
 from sklearn import svm,linear_model
-import tensorflow as tf
+# import tensorflow as tf
 import os
 from PIL import Image
 

@@ -133,7 +133,7 @@ plt.figtext(0.49, 0.93, 'C', fontsize=40, fontweight='bold')
 
 #%% running the sparse gcPCA
 lambda_array = np.exp(np.linspace(np.log(1e-3), np.log(0.1), num=3))
-sparse_gcpca_mdl = sparse_gcPCA(method='v4',normalize_flag=False,max_steps=500,tol=1e-6,lambdas=lambda_array)
+sparse_gcpca_mdl = sparse_gcPCA(method='v4',Nsparse=2,normalize_flag=False,max_steps=500,tol=1e-6,lambdas=lambda_array,cond_number=10 ** 10)
 sparse_gcpca_mdl.fit(N1,N2)
 
 #%%

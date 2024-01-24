@@ -78,6 +78,7 @@ N2 = N2_red - np.mean(N2_red,axis=0)
 # running gcPCA and plotting the cells in scores
 
 gcpca_mdl = gcPCA(method='v4',normalize_flag=False)
+
 gcpca_mdl.fit(N1,N2) #N1 is diabetes and N2 is normal, all beta cells
 
 
@@ -177,6 +178,44 @@ plt.xlabel('gcPC1')
 plt.ylabel('gcPC2')
 plt.title('Beta cell normal - per patient')
 
+#%% running the analysis in the reverse way
+gcpca_mdl_rev = gcPCA(method='v4',normalize_flag=False)
+gcpca_mdl_rev.fit(N2,N1) #N1 is diabetes and N2 is normal, all beta cells
+plt.figure(num=21,figsize=(12,8))
+
+for name in subject_beta_normal.unique():
+    plt.scatter(gcpca_mdl_rev.Ra_scores_[subject_beta_normal==name,0],
+                gcpca_mdl_rev.Ra_scores_[subject_beta_normal==name,1],s=80)
+    
+# plt.xlim((-0.2,0.2))
+# plt.ylim((-0.3,0.3))
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
+plt.title('Beta cell normal - per patient')
+
+plt.figure(num=22,figsize=(12,8))
+
+for name in subject_beta_t2d.unique():
+    plt.scatter(gcpca_mdl_rev.Rb_scores_[subject_beta_t2d==name,0],
+                gcpca_mdl_rev.Rb_scores_[subject_beta_t2d==name,1],s=80)
+    # plt.scatter(N1[subject_beta_t2d==name,:]@gcpca_mdl_rev.loadings_[:,0],
+                # N1[subject_beta_t2d==name,:]@gcpca_mdl_rev.loadings_[:,1],s=80)
+
+# plt.xlim((-0.2,0.2))
+# plt.ylim((-0.3,0.3))
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
+plt.title('Beta cell T2D - per patient')
+
+#%% testing with PCA
+plt.figure(num=23)
+U,S,V = np.linalg.svd(N1,full_matrices=False)
+for name in subject_beta_t2d.unique():
+    plt.scatter(U[subject_beta_t2d==name,0],
+                U[subject_beta_t2d==name,1],s=80)
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.title('Beta cell normal - per patient')
 #%% plotting gcPCA
 
 gcpca_gene_space = gcpca_mdl.loadings_[:,0]

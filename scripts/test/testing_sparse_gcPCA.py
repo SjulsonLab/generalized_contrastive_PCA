@@ -75,7 +75,7 @@ plt.title("gcPCA")
 # plt.show()
 
 #%%
-lambdas_array = np.exp(np.linspace(np.log(2e-4), np.log(5e-3), num=10))
+lambdas_array = np.exp(np.linspace(np.log(2e-5), np.log(0.1), num=10))
 sparse_gcPCA_mdl = sparse_gcPCA(method='v4', normalize_flag=False,Nsparse=2,lambdas=lambdas_array)
 sparse_gcPCA_mdl.fit(fg, bg)
 #%%
