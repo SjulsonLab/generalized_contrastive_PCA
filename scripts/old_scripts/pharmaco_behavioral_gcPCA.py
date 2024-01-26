@@ -33,7 +33,7 @@ data_dir = 'C:\\Users\\fermi\\Dropbox\\preprocessing_data\\gcPCA_files\\behavior
 fid = open(data_dir + 'fingerprints.pkl','rb')
 fingerprints, fingerprint_labels = pickle.load(fid,encoding='latin1')
 x = fingerprints['moseq']
-x1 = fingerprints['moseq']
+behavior_data = fingerprints['moseq']
 #loading syllables labels
 fid = open(data_dir + 'syllablelabels.pkl','rb')
 syllables = pickle.load(fid,encoding='latin1')
@@ -246,17 +246,134 @@ drug_sort = np.argsort(avg_proj[:,2])
 #     # plt.ylim((-0.027,0.027))
 #     sns.despine()
 
+#%% running gcPCA all doses haloperidol vs all doses risperidone
 
-#%% running tsne on projected data
-# drugs_data_red = np.outer(gcpca_mdl.Ra_scores_[:,0],gcpca_mdl.loadings_[:,0].T) + np.outer(gcpca_mdl.Ra_scores_[:,1],gcpca_mdl.loadings_[:,1].T)
-# X_embedded = TSNE(n_components=2, learning_rate='auto',
-#                    init='random', perplexity=10).fit_transform(drugs_data_red)
+drug = fingerprint_labels['drug']
+unique_drug = [b for a,b in zip([""]+drug,drug) if b!=a]
+behavior_data = fingerprints['moseq']
 
-# p1=X_embedded
+# separating control and drugs data
+halo_idx = np.logical_and(np.char.equal(drug,'haloperidol'),np.isin(highlow_label,['Low','Medium','High','Very High']))
+halo_data = behavior_data[halo_idx,:]
+risp_idx = np.logical_and(np.char.equal(drug,'risperidone'),np.isin(highlow_label,['Low','Medium','High','Very High']))
+risp_data = behavior_data[risp_idx,:]
+
+gcpca_mdl = gcPCA(method='v4')
+gcpca_mdl.fit(risp_data,halo_data)
+
+Ra_scores = gcpca_mdl.Ra_scores_
+Rb_scores = gcpca_mdl.Rb_scores_
+
+#%% make plot by dose top gcPCs
+
+halo_dose_label = np.array(highlow_label)[halo_idx]
+risp_dose_label = np.array(highlow_label)[risp_idx]
+dose_order = ['Low','Medium','High','Very High']
+# first plotting haloperidol
+# marker_color_halo = ['lightgreen','limegreen','mediumseagreen','darkgreen']
 # plt.figure()
-# for i, treatment in enumerate(unique_drug[:-1]):
-#     idx = y_drug == i
-#     plt.plot(p1[idx,0], p1[idx, 1], 'o', alpha=0.2, color=colors_[i])
-#     x, y = np.mean(p1[idx,0:2], axis=0)
-#     plt.plot(x, y, 'o',markersize=15, color=colors_[i], label=short_name_map[treatment])
-#     plt.text(x + 0.001, y, short_name_map[treatment], fontsize=10, verticalalignment='center', )
+# x0, y0 = Rb_scores[:,0], Rb_scores[:, 1]
+# for j,a in enumerate(dose_order):
+#     idx_dose = halo_dose_label == a
+#     plt.plot((x0[idx_dose]), (y0[idx_dose]), 'o', alpha=0.8, color=marker_color_halo[j],
+#                   markersize=10,label=a)
+# x, y = np.median(Rb_scores[:,0]), np.median(Rb_scores[:,1])
+# plt.plot(x, y, 'o',markersize=15, color='grey')
+# plt.text(x + 0.005, y, 'HALO', fontsize=14, verticalalignment='center',weight='bold')
+
+marker_color_risp = ['lightblue','dodgerblue','royalblue','darkblue']
+# plotting risperidone now
+x0, y0 = Ra_scores[:,0], Ra_scores[:, 1]
+for j,a in enumerate(dose_order):
+    idx_dose = risp_dose_label == a
+    plt.plot((x0[idx_dose]), (y0[idx_dose]), 's', alpha=0.8, color=marker_color_risp[j],
+                 markersize=10,label=a)
+x, y = np.median(Ra_scores[:,0]), np.median(Ra_scores[:,1])
+plt.plot(x, y, 's',markersize=15, color='grey')
+plt.text(x + 0.005, y, 'RISP', fontsize=14, verticalalignment='center',weight='bold')
+
+sns.despine()
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
+plt.title('top gcPCS - RISP gcPCs')
+# plt.legend()
+
+#%% make plot by dose of bottom gcPCs
+halo_dose_label = np.array(highlow_label)[halo_idx]
+risp_dose_label = np.array(highlow_label)[risp_idx]
+dose_order = ['Low','Medium','High','Very High']
+# first plotting haloperidol
+# marker_size = [3,6,9,12]
+marker_color_halo = ['palegreen','springgreen','mediumseagreen','darkgreen']
+plt.figure()
+# idx = y_drug == i
+x0, y0 = Rb_scores[:,-1], Rb_scores[:, -2]
+for j,a in enumerate(dose_order):
+    idx_dose = halo_dose_label == a
+    plt.plot((x0[idx_dose]), (y0[idx_dose]), 'o', alpha=0.8, color=marker_color_halo[j],
+                 markersize=10,label=a)
+x, y = np.median(Rb_scores[:,-1]), np.median(Rb_scores[:,-2])
+plt.plot(x, y, 'o',markersize=15, color='grey')
+plt.text(x + 0.005, y, 'HALO', fontsize=14, verticalalignment='center',weight='bold')
+
+# marker_color_risp = ['lightblue','dodgerblue','royalblue','darkblue']
+# # plotting risperidone now
+# x0, y0 = Ra_scores[:,-1], Ra_scores[:, -2]
+# for j,a in enumerate(dose_order):
+#     idx_dose = risp_dose_label == a
+#     plt.plot((x0[idx_dose]), (y0[idx_dose]), 's', alpha=0.8, color=marker_color_risp[j],
+#                   markersize=10,label=a)
+# x, y = np.median(Ra_scores[:,-1]), np.median(Ra_scores[:,-2])
+# plt.plot(x, y, 's',markersize=15, color='grey')
+# plt.text(x + 0.005, y, 'RISP', fontsize=14, verticalalignment='center',weight='bold')
+
+sns.despine()
+plt.xlabel('gcPC1')
+plt.ylabel('gcPC2')
+plt.title('bot gcPCS - HALO gcPCs')
+# plt.legend()
+
+#%% plotting PCA - risp
+
+data_risp = zscore(risp_data)
+data_risp[np.isnan(data_risp)] = 0
+U_risp,S,V_risp = np.linalg.svd(data_risp,full_matrices=False)
+plt.figure()
+marker_color_risp = ['lightblue','dodgerblue','royalblue','darkblue']
+# plotting risperidone now
+score_risp = data_risp@V_risp.T
+x0, y0 = score_risp[:,0], score_risp[:, 1]
+for j,a in enumerate(dose_order):
+    idx_dose = risp_dose_label == a
+    plt.plot((x0[idx_dose]), (y0[idx_dose]), 's', alpha=0.8, color=marker_color_risp[j],
+                 markersize=10,label=a)
+x, y = np.median(score_risp[:,0]), np.median(score_risp[:,1])
+plt.plot(x, y, 's',markersize=15, color='grey')
+plt.text(x + 0.005, y, 'RISP', fontsize=14, verticalalignment='center',weight='bold')
+
+sns.despine()
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.title('top RISP PCs')
+
+#%% plotting PCA halo
+data_halo =zscore(halo_data)
+data_halo[np.isnan(data_halo)] = 0
+U_halo,S,V_halo = np.linalg.svd(data_halo,full_matrices=False)
+score_halo_on_risp = data_halo@V_halo.T
+plt.figure()
+marker_color_risp = ['lightblue','dodgerblue','royalblue','darkblue']
+
+x0, y0 = score_halo_on_risp[:,0], score_halo_on_risp[:, 1]
+for j,a in enumerate(dose_order):
+    idx_dose = halo_dose_label == a
+    plt.plot((x0[idx_dose]), (y0[idx_dose]), 'o', alpha=0.8, color=marker_color_halo[j],
+                 markersize=10,label=a)
+x, y = np.median(score_halo_on_risp[:,0]), np.median(score_halo_on_risp[:,1])
+plt.plot(x, y, 'o',markersize=15, color='grey')
+plt.text(x + 0.005, y, 'HALO', fontsize=14, verticalalignment='center',weight='bold')
+
+sns.despine()
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.title('top HALO PCs')

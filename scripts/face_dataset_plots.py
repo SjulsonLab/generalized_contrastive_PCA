@@ -95,8 +95,12 @@ temp1 = gcpcs[:,0]
 image_gcpc1 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
 temp1 = gcpcs[:,1]
 image_gcpc2 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
-temp1 = gcpcs[:,2]
-image_gcpc3 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
+
+temp1 = gcpcs[:,-1]
+image_gcpc_minus1 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
+
+temp1 = gcpcs[:,-2]
+image_gcpc_minus2 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
 
 #%%  perform LDA!!!!
 #even though I think it's not necessary
@@ -123,7 +127,7 @@ image_gcpc3 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
 m_size = 100  # markersize for scatter
 neutral_example = 5
 hc_example = 5
-angry_example = 68+hc_example
+angry_example = 65+hc_example
 
 from matplotlib import colors as clrs
 # sns.set_style("whitegrid")
@@ -284,7 +288,7 @@ im = OffsetImage(face_plot[45:205,35:145], zoom=0.6, cmap=my_cmap)
 x,y = U[hc_example,:2]
 ab = AnnotationBbox(im,
                     [x, y],
-                    xybox=(-0.0875,0.1),
+                    xybox=(-0.086,0.1),
                     xycoords='data',
                     frameon=False,
                     arrowprops=dict(arrowstyle="->",color='black'))
@@ -376,27 +380,27 @@ plt.savefig("face_expression_figure2.png", format="png")
 
 
 #%% make a whole plot of faces
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox, TextArea
-import copy
-my_cmap = copy.copy(plt.cm.get_cmap('gray')) # get a copy of the gray color map
-my_cmap.set_bad(alpha=0) # set how the colormap handles 'bad' values
+# from matplotlib.offsetbox import OffsetImage, AnnotationBbox, TextArea
+# import copy
+# my_cmap = copy.copy(plt.cm.get_cmap('gray')) # get a copy of the gray color map
+# my_cmap.set_bad(alpha=0) # set how the colormap handles 'bad' values
 
-# plt.rcParams.update({'font.size':28})
-fig, ax = plt.subplots(figsize=(30, 21))
-c = 0
-for x,y in U_gcpca[:,0:2]:
-    face_temp = np.squeeze(data_A[:,:,c]).astype(float)*Mask
-    face_plot = face_temp.copy()
-    face_plot[face_temp==0.0]=np.nan
-    im = OffsetImage(face_plot, zoom=1, cmap=my_cmap)
-    ab = AnnotationBbox(im, (x, y), xycoords='data', frameon=False)
-    ax.add_artist(ab)
-    c+=1
-ax.update_datalim(U_gcpca[:,0:2])
-ax.autoscale()
-ax.set_xlabel('gcPC1',fontsize=40)
-ax.set_ylabel('gcPC2',fontsize=40)
-ax.tick_params(axis='both', which='major', labelsize=30)
+# # plt.rcParams.update({'font.size':28})
+# fig, ax = plt.subplots(figsize=(30, 21))
+# c = 0
+# for x,y in U_gcpca[:,0:2]:
+#     face_temp = np.squeeze(data_A[:,:,c]).astype(float)*Mask
+#     face_plot = face_temp.copy()
+#     face_plot[face_temp==0.0]=np.nan
+#     im = OffsetImage(face_plot, zoom=1, cmap=my_cmap)
+#     ab = AnnotationBbox(im, (x, y), xycoords='data', frameon=False)
+#     ax.add_artist(ab)
+#     c+=1
+# ax.update_datalim(U_gcpca[:,0:2])
+# ax.autoscale()
+# ax.set_xlabel('gcPC1',fontsize=40)
+# ax.set_ylabel('gcPC2',fontsize=40)
+# ax.tick_params(axis='both', which='major', labelsize=30)
 
 
 # %% gcPCA on vgg16 feature extraction
