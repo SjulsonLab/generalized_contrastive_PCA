@@ -1,5 +1,5 @@
 # generalized_contrastive_PCA
-Repository for code and scripts related to generalized contrastive PCA
+Repository for code and scripts related to generalized contrastive PCA (gcPCA)
 
 --------------------------------------------------------------------------------
 ### Installation
