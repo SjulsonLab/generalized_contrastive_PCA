@@ -16,6 +16,7 @@ from scipy.io import loadmat
 import copy
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import sys
+import os
 
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox, TextArea
@@ -25,6 +26,8 @@ import seaborn as sns
 repo_dir = r'C:\Users\fermi\Documents\GitHub\generalized_contrastive_PCA'
 sys.path.append(repo_dir)
 from contrastive_methods import gcPCA
+
+save_fig_path = r'C:\Users\fermi\Dropbox\figures_gcPCA\face_dataset'
 
 #%%
 data_path = r'C:\Users\fermi\Dropbox\preprocessing_data\gcPCA_files\face\CFD_V3\Images\CFD'
@@ -135,7 +138,7 @@ sns.set_style("ticks")
 sns.set_context("talk")
 # making custom colormap and adding as the default
 cmap = clrs.LinearSegmentedColormap.from_list("", ["seagreen","white","blueviolet"])
-plt.rcParams['image.cmap'] = cmap
+# plt.rcParams['image.cmap'] = cmap
 plt.rcParams.update({'figure.dpi':150, 'font.size':24})
 
 # starting plot
@@ -189,7 +192,7 @@ lbl_a = np.argwhere(labels==1)[:,0]
 m_lim = np.max(np.abs(image_pc1*Mask))/0.7
 
 plt.subplot(grid3[0:2,1])
-plt.imshow(image_pc1*Mask,aspect='auto')
+plt.imshow(image_pc1*Mask,cmap=cmap,aspect='auto')
 plt.title("PC1")
 plt.xlim((35,145))
 plt.ylim((205,45))
@@ -212,7 +215,7 @@ plt.axis('off')
 # ax1.set_ylim((205,45))
 
 ax = plt.subplot(grid3[0:2,2])
-auxp=plt.imshow(image_pc2*Mask,aspect='auto')
+auxp=plt.imshow(image_pc2*Mask,cmap=cmap,aspect='auto')
 plt.title("PC2")
 plt.xlim((35,145))
 plt.ylim((205,45))
@@ -232,7 +235,7 @@ plt.figtext(0.37, 0.915, 'Loadings', fontsize=30)
 # % plotting gcPC projection
 m_limc = np.max(np.abs(image_gcpc1*Mask))/1.8
 plt.subplot(grid3[2:4,1])
-plt.imshow(image_gcpc1,aspect='auto')
+plt.imshow(image_gcpc1,cmap=cmap,aspect='auto')
 plt.xlim((35,145))
 plt.ylim((205,45))
 plt.title("gcPC1")
@@ -240,7 +243,7 @@ plt.clim(-1*m_limc, m_limc)
 plt.axis('off')
 
 ax2 = plt.subplot(grid3[2:4,2])
-auxp=plt.imshow(image_gcpc2,aspect='auto')
+auxp=plt.imshow(image_gcpc2,cmap=cmap,aspect='auto')
 plt.xlim((35,145))
 plt.ylim((205,45))
 plt.title("gcPC2")
@@ -251,7 +254,7 @@ cbar = fig.colorbar(auxp, cax=cax)
 cbar.set_label('Magnitude', rotation=270, labelpad=18, fontsize=22)
 plt.axis('off')
 plt.figtext(0.30, 0.46, 'D', fontsize=40, fontweight='bold')
-plt.figtext(0.37, 0.475, 'Loadings', fontsize=30)
+plt.figtext(0.37, 0.49, 'Loadings', fontsize=30)
 # plt.subplot(grid3[2:4,3])
 # plt.imshow(image_gcpc3)
 # plt.title("gcPC3")
@@ -345,8 +348,8 @@ ab = AnnotationBbox(im,
                     arrowprops=dict(arrowstyle="->",color='black'))
 ax.add_artist(ab)
 plt.figtext(0.60, 0.46, 'E', fontsize=40, fontweight='bold')
-plt.savefig("face_expression_figure2.pdf", format="pdf")
-plt.savefig("face_expression_figure2.png", format="png")
+plt.savefig(os.path.join(save_fig_path,"face_expression_figure2.pdf"), format="pdf")
+plt.savefig(os.path.join(save_fig_path+"face_expression_figure2.png"), format="png")
 
 # ax.autoscale()
 # #picking a face
