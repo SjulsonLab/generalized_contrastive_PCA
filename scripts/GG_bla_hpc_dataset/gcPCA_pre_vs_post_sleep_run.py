@@ -8,11 +8,8 @@ script for gcPCA analysis on HPC-BLA dataset, testing post - pre sleep dimension
 """
 
 
-#%% importing essentials
-import os
+# importing packages
 import sys
-import shutil
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pynapple as nap
@@ -24,19 +21,19 @@ from scipy.stats import zscore
 from scipy.signal import savgol_filter
 import mat73 #to load matlab v7.3 files
 import pickle
-from numpy import linalg as LA
 
 #%% parameters
 min_n_cell = 30 #min number of cells in the brain area to be used
 min_fr = 0.01 #minimum firing rate to be included in the analysis
 bin_size = 0.01 # 0.01
-bin_size_task = 0.05; # 0.05
+bin_size_task = 0.05 # 0.05
 plt.rcParams['figure.dpi'] = 300
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
 plt.rcParams['font.size'] = 12
 std_conv = 2  # standard deviation for convolution (in num bins units)
 wind_cov = 5  # window size for convolution (in num bins units)
+roll_wind = 20  # window size for rolling mean
 #%% import custom modules
 #repo_dir = "/gs/gsfs0/users/edeolive/github/generalized_contrastive_PCA/" #repository dir
 repo_dir = "/home/eliezyer/Documents/github/generalized_contrastive_PCA/"
@@ -76,10 +73,10 @@ def extract_trials(temp,temp_spd):
     
     #picking only the intervals that lasted > min_len s and < max_len s
     start1 = ts[temp_st]
-    stop1  = ts[temp_sp]
+    stop1 = ts[temp_sp]
     int2keep = ((stop1 - start1)>min_len) * ((stop1 - start1)<max_len)
     start2 = start1[int2keep].copy()
-    stop2  = stop1[int2keep].copy()
+    stop2 = stop1[int2keep].copy()
     trials2keep = []
     for a in np.arange(len(start2)):
         interval = nap.IntervalSet(start=start2[a],end=stop2[a])
@@ -158,33 +155,34 @@ save_fig_path = '/mnt/probox/buzsakilab.nyumc.org/datasets/GirardeauG/gcPCA_plot
 data_dict = mat73.loadmat(basepath+'hpc_bla_gg_dataset.mat')
 
 #%%
-safe_run    = []
-safe_prun   = []
-danger_run  = []
+safe_run = []
+safe_prun = []
+danger_run = []
 danger_prun = []
-loadings    = []
-right_ap    = []
-left_ap     = []
-ap_total    = []
-subject     = []
-n_cell      = []
+loadings = []
+right_ap = []
+left_ap = []
+ap_total = []
+subject = []
+n_cell = []
 
 #saving info
 participation_pre_swr = []  # participation index in SWR pre run SWS state
-participation_post_swr = [] # participation index in SWR post run SWS state
+participation_post_swr = []  # participation index in SWR post run SWS state
 cellidx_gcpc1 = []  # boolean of indexes, true the cell crossed a threshold of loadings, false it didn't cross the threshold - gcpc1
 cellidx_gcpc2 = []  # boolean of indexes, true the cell crossed a threshold of loadings, false it didn't cross the threshold - gcpc2
-SWS_fr_pre    = []  # firing rate of the cell on SWS before running on the maze with airpuff
-SWS_fr_post   = []  # firing rate of the cell on SWS after running on the maze with airpuff
-SI_pre    = []  # spatial information the cell had on the pre run, before the maze with airpuff
-SI_run    = []  # spatial information the cell had on the run, during the run with the airpuff
-SI_post   = []  # spatial information the cell had on the post run, after the run in the maze with airpuff
-cell_loadings_gcpc1 = [] #loadings of gcPC1
-cell_loadings_gcpc2 = [] #loadings of gcPC2
+SWS_fr_pre = []  # firing rate of the cell on SWS before running on the maze with airpuff
+SWS_fr_post = []  # firing rate of the cell on SWS after running on the maze with airpuff
+SI_pre = []  # spatial information the cell had on the pre run, before the maze with airpuff
+SI_run = []  # spatial information the cell had on the run, during the run with the airpuff
+SI_post = []  # spatial information the cell had on the post run, after the run in the maze with airpuff
+cell_loadings_gcpc1 = []  # loadings of gcPC1
+cell_loadings_gcpc2 = []  # loadings of gcPC2
 
+# loop over sessions
 for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
     air_puff_times = data_dict['hpc_bla_gg_dataset']['air_puff_times'][ses]
-    if len(air_puff_times)>10:  # if more than 10 trials had airpuff
+    if len(air_puff_times)>10:  # includes only sessions that more than 10 trials had airpuff
         pos = data_dict['hpc_bla_gg_dataset']['location'][ses]
         linspd = data_dict['hpc_bla_gg_dataset']['linspd'][ses]
         pos_t = data_dict['hpc_bla_gg_dataset']['tracking_t'][ses]
@@ -198,7 +196,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
             pre_sws_temp = data_dict['hpc_bla_gg_dataset']['task'][ses]['pre_sws_intervals']
             post_sws_temp = data_dict['hpc_bla_gg_dataset']['task'][ses]['post_sws_intervals']
             
-            #getting riplpes start and stop points
+            # getting ripples start and stop points
             rip_start = data_dict['hpc_bla_gg_dataset']['ripple'][ses]['start']-50
             rip_stop = data_dict['hpc_bla_gg_dataset']['ripple'][ses]['stop']+50
             
@@ -206,17 +204,17 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
             nap_spd = nap.Tsd(pos_t, d=linspd,time_units="s")
             nap_air_puff = nap.Ts(air_puff_times,time_units="ms")
             pre_run_intervals = nap.IntervalSet(start=pre_run_temp[0],end = pre_run_temp[1])
-            run_intervals     = nap.IntervalSet(start=run_temp[0],end = run_temp[1])
+            run_intervals = nap.IntervalSet(start=run_temp[0],end = run_temp[1])
             post_run_intervals = nap.IntervalSet(start=post_run_temp[0],end = post_run_temp[1])
             pre_sws_intervals = nap.IntervalSet(start=pre_sws_temp[0],end = pre_sws_temp[1])
             post_sws_intervals = nap.IntervalSet(start=post_sws_temp[0],end = post_sws_temp[1])
             
-            #getting ripples and separating by sws intervals
+            # getting ripples and separating by sws intervals
             rip_intervals = nap.IntervalSet(start=rip_start,end=rip_stop,time_units="ms")
             pre_rip = pre_sws_intervals.intersect(rip_intervals)
             post_rip = post_sws_intervals.intersect(rip_intervals)
             
-            #preparing spikes
+            # preparing spikes
             
             # this is to look at  BLA
             # cells_bla = np.argwhere([np.char.equal(region,'bla')])
@@ -238,7 +236,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                 
                 #separating in pre/run
                 temp_pr = spikes_times.restrict(pre_run_intervals)  # pre run
-                temp_r  = spikes_times.restrict(run_intervals)      # run
+                temp_r = spikes_times.restrict(run_intervals)      # run
                 temp_psr = spikes_times.restrict(post_run_intervals)  # post run
                 temp_presws = spikes_times.restrict(pre_sws_intervals)  # pre run SWS
                 temp_postsws = spikes_times.restrict(post_sws_intervals)  # post run SWS
@@ -251,21 +249,21 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                 if sum(cells2keep)>min_n_cell:
                     #normalizing and smoothing data - pre run periods
                     temp_data = zscore(temp_pr.count(bin_size_task).as_dataframe().rolling(window=wind_cov,
-                            win_type='gaussian',center=True,min_periods=1, 
+                            win_type='gaussian',center=True,min_periods=1,
                             axis = 0).mean(std=std_conv).values)
                     prerun_time = np.array(temp_pr.count(bin_size_task).index)
                     prerun_data = temp_data[:,cells2keep].copy()
-                    
+
                     #normalizing and smoothing data - run periods
                     temp_data = zscore(temp_r.count(bin_size_task).as_dataframe().rolling(window=wind_cov,
                             win_type='gaussian',center=True,min_periods=1, 
                             axis = 0).mean(std=std_conv).values)
                     run_time = np.array(temp_r.count(bin_size_task).index)
                     run_data = temp_data[:,cells2keep].copy()
-                    
+
                     #normalizing and smoothing data - post run periods
                     temp_data = zscore(temp_psr.count(bin_size_task).as_dataframe().rolling(window=wind_cov,
-                            win_type='gaussian',center=True,min_periods=1, 
+                            win_type='gaussian',center=True,min_periods=1,
                             axis = 0).mean(std=std_conv).values)
                     postrun_time = np.array(temp_psr.count(bin_size_task).index)
                     postrun_data = temp_data[:,cells2keep].copy()
@@ -286,33 +284,32 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     #getting left and right trials intervals
                     pre_run_pos = nap_pos.restrict(pre_run_intervals).as_series()
                     pre_run_spd = nap_spd.restrict(pre_run_intervals).as_series()
-                    run_pos     = nap_pos.restrict(run_intervals).as_series()
-                    run_spd     = nap_spd.restrict(run_intervals).as_series()
-                    post_run_pos     = nap_pos.restrict(post_run_intervals).as_series()
-                    post_run_spd     = nap_spd.restrict(post_run_intervals).as_series()
-                    
+                    run_pos = nap_pos.restrict(run_intervals).as_series()
+                    run_spd = nap_spd.restrict(run_intervals).as_series()
+                    post_run_pos = nap_pos.restrict(post_run_intervals).as_series()
+                    post_run_spd = nap_spd.restrict(post_run_intervals).as_series()
+
                     #for visualization
                     fig0, (tst) = plt.subplots(1, 2)
                     tst[0].plot(pos[:,1],pos[:,0])
                     tst[1].plot(run_pos.values)
                     plt.title('session: ' + str(ses))
-                    
-                    
-                    #identifying trials of running left or right 
+
+                    #identifying trials of running left or right
                     #pre run
                     temp = nap.Tsd(np.array(pre_run_pos.index),savgol_filter(np.array(pre_run_pos.values),300,3))
                     temp_spd = pre_run_spd
                     left_pr_int2,right_pr_int2 = extract_trials(temp,nap_spd)
                     left_pr_int = left_pr_int2.merge_close_intervals(threshold=1)
                     right_pr_int = right_pr_int2.merge_close_intervals(threshold=1)
-                    
+
                     #post run
                     temp = nap.Tsd(np.array(post_run_pos.index),savgol_filter(np.array(post_run_pos.values),300,3))
                     temp_spd = pre_run_spd
                     left_psr_int2,right_psr_int2 = extract_trials(temp,nap_spd)
                     left_psr_int = left_psr_int2.merge_close_intervals(threshold=1)
                     right_psr_int = right_psr_int2.merge_close_intervals(threshold=1)
-                    
+
                     #run
                     temp = nap.Tsd(np.array(run_pos.index),savgol_filter(np.array(run_pos.values),300,3))
                     # temp_spd = run_spd
@@ -365,64 +362,22 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     SI_run.append(aux_SI[cells2keep])
                     aux_SI = np.nanmean(np.concatenate((mi_left_postrun.values,mi_right_postrun.values),axis=1),axis=1)
                     SI_post.append(aux_SI[cells2keep])
-                    
-                    # grid = plt.GridSpec(2,1,hspace=0.2)
-                    # plt.figure(figsize=(7,15))
-                    # plt.subplot(grid[0,0])
-                    # plt.stem(V[0,:].T)
-                    # plt.xlabel('Neurons')
-                    # plt.ylabel('Loadings')
-                    # plt.title('PC1')
-                    # plt.subplot(grid[1,0])
-                    # plt.stem(gcpca_mdl.loadings_[:,0])
-                    # plt.xlabel('Neurons')
-                    # plt.ylabel('Loadings')
-                    # plt.title('gcPC1')
-                    #%% temp plots
-                    # aux_diff = mi_right_run.values-mi_right_prerun.values # change of spatial information
-                    
-                    # difference in post-pre rip firing rates
-                    # aux_diff = (temp_postrip.rates.values - temp_prerip.rates.values) / temp_prerip.rates.values
-                    
-                    # difference in ripple participation
-                    # aux_diff = (post_rip_participation - pre_rip_participation)
-                    
-                    # difference in post-pre sws firing rates
-                    # aux_diff = (temp_postsws.rates.values / temp_presws.rates.values)
-                    
-                    # calculate peak difference
-                    # idx_post = np.argmax(tc_left_postrun.values,axis=0)
-                    # idx_pre = np.argmax(tc_left_prerun.values,axis=0)
-                    # aux_diff = idx_post - idx_pre
-                    # val = np.max(tc_left_postrun.values,axis=0)
-                    
-                    
-                    # aux_diff = aux_diff[cells2keep]
-                    
-                    # limity = np.nanmax(np.abs(aux_diff))+0.01
-                    # gcpcs_n = 0
-                    # limitx = np.nanmax(np.abs(gcpca_mdl.loadings_[:,gcpcs_n]))+0.01
-                    # plt.scatter(np.abs(gcpca_mdl.loadings_[:,gcpcs_n]),aux_diff)
-                    # # plt.xlim([-limitx, limitx])
-                    # # plt.yscale('symlog')
-                    # plt.ylim([-limity, limity])
+
                     #%% running gcPCA
                     gcpca_mdl = gcPCA(method='v4')
-                    gcpca_mdl.fit(postsws_data,presws_data)
+                    gcpca_mdl.fit(postsws_data, presws_data)
                     
-                    #%% tresholding the gcPC1 and 2
-                    threshold = gcpca_mdl.loadings_[:,0].mean() + 1*gcpca_mdl.loadings_[:,0].std()
-                    cellidx_gcpc1.append(np.abs(gcpca_mdl.loadings_[:,0])>threshold)
-                    
-                    threshold = gcpca_mdl.loadings_[:,1].mean() + 1*gcpca_mdl.loadings_[:,1].std()
-                    cellidx_gcpc2.append(np.abs(gcpca_mdl.loadings_[:,1])>threshold)
-                    
+                    #%% saving loadings for magnitude
                     cell_loadings_gcpc1.append(gcpca_mdl.loadings_[:,0])
                     cell_loadings_gcpc2.append(gcpca_mdl.loadings_[:,1])
                     
                     #%% running PCA
                     _,_,V = np.linalg.svd(postsws_data,full_matrices=False)
-                    
+
+                    # %% running cPCA
+                    gcpca_mdlv1 = gcPCA(method='v1')
+                    gcpca_mdlv1.fit(postsws_data, presws_data)
+
                     #%%
                     #identifying which run is safe or dangerous
                     n_r = len(nap_air_puff.restrict(right_runs_int))
@@ -433,8 +388,9 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         runs_type={'left':'safe','right':'danger'}
                     
                     #projection variance higher in safe or dangerous trial
-                    prerun_gcpca = nap.TsdFrame(prerun_time,d=prerun_data.dot(gcpca_mdl.loadings_[:,:2]))
-                    run_gcpca = nap.TsdFrame(run_time,d=run_data.dot(gcpca_mdl.loadings_[:,:2]))
+                    prerun_gcpca = nap.TsdFrame(prerun_time,d=prerun_data.dot(gcpca_mdl.loadings_[:, :2]))
+                    run_gcpca = nap.TsdFrame(run_time,d=run_data.dot(gcpca_mdl.loadings_[:, :2]))
+                    run_gcpcav1 = nap.TsdFrame(run_time, d=run_data.dot(gcpca_mdlv1.loadings_[:, :2]))
                     
                     run_pca = nap.TsdFrame(run_time,d=run_data.dot(V[:2,:].T))
                     
@@ -472,6 +428,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     ap_total.append(len(nap_air_puff))
                     subject.append(data_dict['hpc_bla_gg_dataset']['session_folder_name'][ses])
                     n_cell.append(sum(cells2keep))
+
                     #%% find the location of airpuff and get the vector variance 
                     #after the animal crosses that
                     temp_ap = nap.IntervalSet(start=nap_air_puff.index-0.05,end = nap_air_puff.index+0.05)
@@ -487,9 +444,8 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     dim2 = np.interp(run_pos.index,run_gcpca.index,run_gcpca.values[:,1])
                     newd = np.concatenate((dim1[:,np.newaxis],dim2[:,np.newaxis]),axis=1)
                     new_r_gcpca = nap.TsdFrame(np.array(run_pos.index), d = newd)
-                    
-                    roll_wind = 20
-                    run_gcpca = new_r_gcpca.as_dataframe().rolling(roll_wind).mean()
+
+                    run_gcpca = new_r_gcpca.as_dataframe().rolling(roll_wind,center=True).mean()
                     
                     ### plotting projection on maze
                     fig5, (tst) = plt.subplots(1, 2)
@@ -499,21 +455,26 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     tst[1].plot(run_pos.values,run_gcpca.values[:,1],lw=0.25,zorder=0,c='k')
                     tst[1].scatter(air_puff_loc,0,c=['seagreen'],zorder=1)
                     ###
+
+                    dim1 = np.interp(run_pos.index, run_gcpcav1.index, run_gcpcav1.values[:, 0])
+                    dim2 = np.interp(run_pos.index, run_gcpcav1.index, run_gcpcav1.values[:, 1])
+                    newd = np.concatenate((dim1[:, np.newaxis], dim2[:, np.newaxis]), axis=1)
+                    new_run_gcpcav1 = nap.TsdFrame(np.array(run_pos.index), d=newd)
+                    run_gcpcav1 = new_r_gcpca.as_dataframe().rolling(roll_wind, center=True).mean()
+
+                    # preparing gcpca prerun
+                    # dim1 = np.interp(pre_run_pos.index,prerun_gcpca.index,prerun_gcpca.values[:,0])
+                    # dim2 = np.interp(pre_run_pos.index,prerun_gcpca.index,prerun_gcpca.values[:,1])
+                    # newd = np.concatenate((dim1[:,np.newaxis],dim2[:,np.newaxis]),axis=1)
+                    # new_pr_gcpca = nap.TsdFrame(np.array(pre_run_pos.index), d = newd)
+                    # prerun_gcpca = new_pr_gcpca.as_dataframe().rolling(roll_wind,center=True).mean()
                     
-                    
-                    #preparing gcpca prerun
-                    dim1 = np.interp(pre_run_pos.index,prerun_gcpca.index,prerun_gcpca.values[:,0])
-                    dim2 = np.interp(pre_run_pos.index,prerun_gcpca.index,prerun_gcpca.values[:,1])
-                    newd = np.concatenate((dim1[:,np.newaxis],dim2[:,np.newaxis]),axis=1)
-                    new_pr_gcpca = nap.TsdFrame(np.array(pre_run_pos.index), d = newd)
-                    prerun_gcpca = new_pr_gcpca.as_dataframe().rolling(roll_wind).mean()
-                    
-                    #preparing for pca
+                    # preparing for pca
                     dim1 = np.interp(run_pos.index,run_pca.index,run_pca.values[:,0])
                     dim2 = np.interp(run_pos.index,run_pca.index,run_pca.values[:,1])
                     newd = np.concatenate((dim1[:,np.newaxis],dim2[:,np.newaxis]),axis=1)
                     new_r_pca = nap.TsdFrame(np.array(run_pos.index), d = newd)
-                    run_pca = new_r_pca.as_dataframe().rolling(roll_wind).mean()
+                    run_pca = new_r_pca.as_dataframe().rolling(roll_wind,center=True).mean()
                     
                     
                     ### plotting projection on maze
@@ -533,12 +494,10 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                     plt.scatter(spd_t,spd_dat,s=10,c='k')
                     fig2, (acs) = plt.subplots(1, 2)
                     fig, (axs) = plt.subplots(2, 2,sharex=True,sharey=True)
-                    for a in left_runs_int.values[1:20,:]:
+                    for a in left_runs_int.values[1:20,:]:  # plotting only the first 20 trials
                         c+=1
                         temp_is = nap.IntervalSet(a[0],end=a[1])
-                        # tmpr = run_gcpca.restrict(temp_is)
-                        # tempdf = tmpr.as_dataframe()
-                        tempdf = new_r_gcpca.restrict(temp_is).as_dataframe().rolling(roll_wind).mean()
+                        tempdf = new_r_gcpca.restrict(temp_is).as_dataframe().rolling(roll_wind,center=True).mean()
 
                         x = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,0])),0]
                         y = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,1])),1]
@@ -547,7 +506,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         
                         axs[0,0].scatter(x[0],y[0],s=mrkr_size,c=color_l_dots[0],zorder=5,alpha=0.9,edgecolors='k')
                         axs[0,0].scatter(x[-1],y[-1],s=mrkr_size,c=color_l_dots[1],zorder=10,alpha=0.9,edgecolors='k')
-                        #finding location index to plot
+                        # finding location index to plot
                         temp_pos = nap_pos.restrict(temp_is)
                         I = np.argmin(np.abs(temp_pos-air_puff_loc))
                         if I<len(x):  # location of air puff was getting where gcPCA is nan
@@ -555,12 +514,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         
                         #plot the trial trajectory to know if you are picking the correct one
                         acs[0].plot(temp_pos.to_numpy())
-                        
-                        """PLOT SPEED HERE SO WE KNOW IF THE ANIMAL IS SLOWING DOWN
-                        
-                        ALSO JUST DO PRE VS POST SLEEP AND SEE IF THE BIGGEST CHANGE IS IN THE MAZE
-                        
-                        NEW STRUCTURE WHERE THE PRE/POST SLEEP IS INCLUDED"""
+
                         
                     
                     for a in right_runs_int.values[1:20,:]:
@@ -568,7 +522,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         temp_is = nap.IntervalSet(a[0],end=a[1])
                         # tmpr = run_gcpca.restrict(temp_is)
                         # tempdf = tmpr.as_dataframe()
-                        tempdf = new_r_gcpca.restrict(temp_is).as_dataframe().rolling(roll_wind).mean()
+                        tempdf = new_run_gcpcav1.restrict(temp_is).as_dataframe().rolling(roll_wind,center=True).mean()
                         x = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,0])),0]
                         y = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,1])),1]
                         axs[1,0].plot(x,y,color_r,linewidth=0.5,zorder=0)
@@ -602,7 +556,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         temp_is = nap.IntervalSet(a[0],end=a[1])
                         # tmpr = run_pca.restrict(temp_is)
                         # tempdf = tmpr.as_dataframe()
-                        tempdf = new_r_pca.restrict(temp_is).as_dataframe().rolling(roll_wind).mean()
+                        tempdf = new_run_gcpcav1.restrict(temp_is).as_dataframe().rolling(roll_wind,center=True).mean()
                         x = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,0])),0]
                         y = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,1])),1]
                         axs[0,1].plot(x,y,color_l,linewidth=0.5,zorder=0)
@@ -621,7 +575,7 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         temp_is = nap.IntervalSet(a[0],end=a[1])
                         # tmpr = run_pca.restrict(temp_is)
                         # tempdf = tmpr.as_dataframe()
-                        tempdf = new_r_pca.restrict(temp_is).as_dataframe().rolling(roll_wind).mean()
+                        tempdf = new_run_gcpcav1.restrict(temp_is).as_dataframe().rolling(roll_wind,center=True).mean()
                         x = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,0])),0]
                         y = tempdf.values[np.logical_not(np.isnan(tempdf.values[:,1])),1]
                         axs[1,1].plot(x,y,color_r,linewidth=0.5,zorder=0)
@@ -633,11 +587,11 @@ for ses in np.arange(len(data_dict['hpc_bla_gg_dataset']['linspd'])):
                         if I<len(x):  # location of air puff was getting where gcPCA is nan
                             axs[1,1].scatter(x[I],y[I],s=mrkr_size,c= color_ap_edge_r[0],edgecolors= color_ap_edge_r[1],zorder=15,alpha=0.9)
                     # axs[0,1].set_title('PCA space')
-                    axs[0,1].set_title('PCA space')
-                    axs[0,1].set_ylabel('PC2')
-                    axs[0,1].set_xlabel('PC1')
-                    axs[1,1].set_ylabel('PC2')
-                    axs[1,1].set_xlabel('PC1')
+                    axs[0,1].set_title('cPCA space')
+                    axs[0,1].set_ylabel('cPC2')
+                    axs[0,1].set_xlabel('cPC1')
+                    axs[1,1].set_ylabel('cPC2')
+                    axs[1,1].set_xlabel('cPC1')
                     
                     fig.savefig(save_fig_path+ses.astype(str)+"gcPCA_space_PCA_space.pdf", transparent=True)
                     

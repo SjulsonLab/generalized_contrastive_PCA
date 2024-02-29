@@ -127,16 +127,16 @@ class gcPCA():
             n_iter = 1
 
         # Covariance matrices
-        RaRa = self.Ra.T.dot(self.Ra)
-        RbRb = self.Rb.T.dot(self.Rb)
+        # RaRa = self.Ra.T.dot(self.Ra)
+        # RbRb = self.Rb.T.dot(self.Rb)
 
         # solving gcPCA
         if self.method == 'v1':  # original cPCA
             alpha = self.alpha
-            JRaRaJ = LA.multi_dot((J.T, RaRa, J))
-            JRbRbJ = LA.multi_dot((J.T, RbRb, J))
+            JRaRaJ = LA.multi_dot((J.T, self.Ra.T, self.Ra, J))
+            JRbRbJ = LA.multi_dot((J.T, self.Rb.T, self.Rb, J))
             sigma = JRaRaJ - alpha*JRbRbJ
-        
+
             # getting eigenvalues and eigenvectors
             w, v = LA.eigh(sigma)
             eig_idx = np.argsort(w)[::-1]
@@ -149,8 +149,8 @@ class gcPCA():
             denom_well_conditioned = False
             for idx in np.arange(n_iter):
                 # define numerator and denominator according to the method requested
-                JRaRaJ = LA.multi_dot((J.T, RaRa, J))
-                JRbRbJ = LA.multi_dot((J.T, RbRb, J))
+                JRaRaJ = LA.multi_dot((J.T, self.Ra.T, self.Ra, J))
+                JRbRbJ = LA.multi_dot((J.T, self.Rb.T, self.Rb, J))
                 
                 if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
                     numerator = JRaRaJ

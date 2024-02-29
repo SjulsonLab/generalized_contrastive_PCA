@@ -38,13 +38,19 @@ data_B = tempmat['face_emotions']['data_B'][0][0]
 labels = tempmat['face_emotions']['labels'][0][0]
 Mask = tempmat['face_emotions']['EllipseMask'][0][0]
 
-A = np.reshape(data_A,(data_A.shape[0]*data_A.shape[1],data_A.shape[2]))
-A_zsc = zscore(A)
-A_norm = A_zsc/norm(A_zsc,axis=0)
+A = np.reshape(data_A, (data_A.shape[0]*data_A.shape[1],data_A.shape[2]))
+A_zsc = zscore(A.T)
+A_zsc[np.isnan(A_zsc)] = 0
+temp = norm(A_zsc, axis=0)
+temp[temp==0] = 1
+A_norm = A_zsc/temp
 
-B = np.reshape(data_B,(data_B.shape[0]*data_B.shape[1],data_B.shape[2]))
-B_zsc = zscore(B)
-B_norm = B_zsc/norm(B_zsc,axis=0)
+B = np.reshape(data_B, (data_B.shape[0]*data_B.shape[1],data_B.shape[2]))
+B_zsc = zscore(B.T)
+B_zsc[np.isnan(B_zsc)] = 0
+temp = norm(B_zsc, axis=0)
+temp[temp==0] = 1
+B_norm = B_zsc/temp
 
 #%% extracting features with vgg16
 # A_feature_list = [];
@@ -77,7 +83,7 @@ B_norm = B_zsc/norm(B_zsc,axis=0)
         
 # B_feature_list_np = np.array(B_feature_list)
 #%% doing PCA and getting the two first PCs to plot
-U,S,V = np.linalg.svd(A_zsc.T,full_matrices=False)
+U,S,V = np.linalg.svd(A_norm,full_matrices=False)
 
 pcs = V.T
 temp1 = pcs[:,0]
@@ -90,7 +96,7 @@ image_pc3 = np.reshape(temp1,(data_A.shape[0],data_A.shape[1])).copy()
 
 #%% doing gcPCA and getting the two first gcPCs
 gcPCA_mdl = gcPCA(method='v4',normalize_flag=False)
-gcPCA_mdl.fit(A_norm.T,B_norm.T)
+gcPCA_mdl.fit(A_norm,B_norm)
 U_gcpca = gcPCA_mdl.Ra_scores_
 
 gcpcs = gcPCA_mdl.loadings_
@@ -160,7 +166,7 @@ plt.xlim((35,145))
 plt.ylim((205,45))
 plt.axis('off')
 plt.title('Neutral')
-plt.figtext(0.02, 0.17, 'condition B', fontsize=40, rotation=90, fontweight='bold')
+plt.figtext(0.02, 0.43, 'condition B', fontsize=40, rotation=90, fontweight='bold')
 
 plt.subplot(grid2[0:2,0])
 temp = data_A[:,:,hc_example].astype(float)*Mask;
@@ -184,7 +190,7 @@ plt.ylim((205,45))
 plt.axis('off')
 plt.title('Angry')
 plt.figtext(0.03, 0.93, 'A', fontsize=40, fontweight='bold')
-plt.figtext(0.02, 0.60, 'condition A', fontsize=40, rotation=90, fontweight='bold')
+plt.figtext(0.02, 0.85, 'condition A', fontsize=40, rotation=90, fontweight='bold')
 
 # % plotting pc projection
 lbl_hc = np.argwhere(labels==0)[:,0]
@@ -291,7 +297,7 @@ im = OffsetImage(face_plot[45:205,35:145], zoom=0.6, cmap=my_cmap)
 x,y = U[hc_example,:2]
 ab = AnnotationBbox(im,
                     [x, y],
-                    xybox=(-0.086,0.1),
+                    xybox=(-0.05,-0.3),
                     xycoords='data',
                     frameon=False,
                     arrowprops=dict(arrowstyle="->",color='black'))
@@ -304,7 +310,7 @@ im = OffsetImage(face_plot[45:205,35:145], zoom=0.6, cmap=my_cmap)
 x,y = U[angry_example,:2]
 ab = AnnotationBbox(im,
                     [x, y],
-                    xybox=(-0.085,-0.01),
+                    xybox=(-0.15,-0.3),
                     xycoords='data',
                     frameon=False,
                     arrowprops=dict(arrowstyle="->",color='black'))
@@ -329,7 +335,7 @@ im = OffsetImage(face_plot[45:205,35:145], zoom=0.6, cmap=my_cmap)
 x,y = U_gcpca[hc_example,:2]
 ab = AnnotationBbox(im,
                     [x, y],
-                    xybox=(-0.3,0.2),
+                    xybox=(0.3,-0.1),
                     xycoords='data',
                     frameon=False,
                     arrowprops=dict(arrowstyle="->",color='black'))
@@ -342,7 +348,7 @@ im = OffsetImage(face_plot[45:205,35:145], zoom=0.6, cmap=my_cmap)
 x,y = U_gcpca[angry_example,:2]
 ab = AnnotationBbox(im,
                     [x, y],
-                    xybox=(0.3,-0.1),
+                    xybox=(-0.3,0.2),
                     xycoords='data',
                     frameon=False,
                     arrowprops=dict(arrowstyle="->",color='black'))
@@ -350,6 +356,7 @@ ax.add_artist(ab)
 plt.figtext(0.60, 0.46, 'E', fontsize=40, fontweight='bold')
 plt.savefig(os.path.join(save_fig_path,"face_expression_figure2.pdf"), format="pdf")
 plt.savefig(os.path.join(save_fig_path+"face_expression_figure2.png"), format="png")
+plt.show()
 
 # ax.autoscale()
 # #picking a face
