@@ -362,15 +362,17 @@ class sparse_gcPCA():
         # solving for sparse gcPCA
         if self.method == 'v1':  # original cPCA
             # fitting again
-            JRaRaJ = LA.multi_dot((J.T, RaRa, J))
-            JRbRbJ = LA.multi_dot((J.T, RbRb, J))
+            RaJ = self.Ra@J@J.T # reducing data to J
+            RbJ = self.Rb@J@J.T # reducing data to J
+            JRaRaJ = RaJ.T @ RaJ
+            JRbRbJ = RbJ.T @ RbJ
             sigma = JRaRaJ - self.alpha * JRbRbJ
 
             # splitting cov matrix in pos and neg parts
             d, e = LA.eigh(sigma)
             eig_idx = np.argsort(d)[::-1]
-            e = e[eig_idx]
-            d = d[:, eig_idx]
+            d = d[eig_idx]
+            e = e[:, eig_idx]
             new_d_pos, new_d_neg = d.copy(), d.copy()
 
             # Calculating only the requested amount
@@ -390,11 +392,12 @@ class sparse_gcPCA():
             new_d_neg = new_d_neg * -1  # Flipping the sign of negative eigenvalues
 
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T 
+            Mpos = e * np.sqrt(new_d_pos + alpha_pos) @ e.T
+            # Mpos = e * np.sqrt(new_d_pos) @ e.T
             
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
             Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T
-
+            # Mneg = e * np.sqrt(new_d_neg) @ e.T
             if n_gcpcs_pos > 0:
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
                                                 self.original_loadings_[:, :n_gcpcs_pos],
@@ -405,7 +408,7 @@ class sparse_gcPCA():
             if n_gcpcs_neg > 0:
                 Mneg_loadings_ = self.spca_algorithm(Mneg,
                                                 self.original_loadings_[:, n_gcpcs_pos:n_gcpcs_pos+n_gcpcs_neg],
-                                                self.lambdas)  # """THINK OF BETTER NAME THAN ORIGINAL, MAYBE NONSPARSE, OR TEMP"""
+                                                self.lambdas)
             else:
                 Mneg_loadings_ = []
 
@@ -471,7 +474,7 @@ class sparse_gcPCA():
             M = e * np.sqrt(d) @ e.T
             
             y = M@self.original_loadings_
-            sigma = LA.multi_dot((LA.inv(M).T,numerator,LA.inv(M))) # EFO: projecting back to feature space
+            sigma = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M))) # EFO: projecting back to feature space
             if flag_without_M:
                 y = self.original_loadings_
                 sigma = numerator
@@ -500,12 +503,15 @@ class sparse_gcPCA():
 
             # Square root matrix of sigma plus
             alpha_pos = new_d_pos.max() / self.cond_number  # fixing it to be positive definite
-            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T  # this is passing it back to neural space to apply original loadings! > original e* np.sqrt(new_d_pos+alpha_pos) @ e.T
+            Mpos = e * np.sqrt(new_d_pos+alpha_pos) @ e.T
+            # Mpos = e * np.sqrt(new_d_pos) @ e.T
 
             alpha_neg = new_d_neg.max() / self.cond_number  # fixing it to be positive definite
-            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T  # this is passing it back to neural space to apply original loadings same original as above ^
+            Mneg = e * np.sqrt(new_d_neg+alpha_neg) @ e.T
+            # Mneg = e * np.sqrt(new_d_neg) @ e.T
 
             if n_gcpcs_pos > 0:
+                from scipy.linalg import orth
                 Mpos_loadings_ = self.spca_algorithm(Mpos,
                                                      y[:, :n_gcpcs_pos],
                                                      self.lambdas)
@@ -522,7 +528,7 @@ class sparse_gcPCA():
             # Rearranging the PCs by vectors
             final_loadings = []
             for a in np.arange(self.lambdas.shape[0]):
-                if  n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
+                if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
                     sigma_pos_loadings_ = LA.inv(M) @ Mpos_loadings_[a]
                     sigma_neg_loadings_ = LA.inv(M) @ Mneg_loadings_[a]
                     # sigma_pos_loadings_ = Mpos_loadings_[a]
@@ -534,6 +540,7 @@ class sparse_gcPCA():
                     final_loadings.append(sigma_neg_loadings_)
                 else:
                     sigma_pos_loadings_ = LA.inv(M) @ Mpos_loadings_[a]
+                    # sigma_pos_loadings_ = Mpos_loadings_[a]
                     if flag_without_M:
                         sigma_pos_loadings_ = Mpos_loadings_[a]
                     final_loadings.append(sigma_pos_loadings_)
@@ -544,8 +551,8 @@ class sparse_gcPCA():
         temp_ra_values = []
         for sload in final_loadings:
             temp = np.dot(self.Ra,sload)
-            temp_ra_scores.append(np.divide(temp,LA.norm(temp,axis=0)))
-            temp_ra_values.append(LA.norm(temp,axis=0))
+            temp_ra_scores.append(np.divide(temp, LA.norm(temp,axis=0)))
+            temp_ra_values.append(LA.norm(temp, axis=0))
 
         self.Ra_scores_ = temp_ra_scores
         self.Ra_values_ = temp_ra_values
@@ -554,8 +561,8 @@ class sparse_gcPCA():
         temp_rb_values = []
         for sload in final_loadings:
             temp = np.dot(self.Rb,sload)
-            temp_rb_scores.append(np.divide(temp,LA.norm(temp,axis=0)))
-            temp_rb_values.append(LA.norm(temp,axis=0))
+            temp_rb_scores.append(np.divide(temp, LA.norm(temp, axis=0)))
+            temp_rb_values.append(LA.norm(temp, axis=0))
 
         self.Rb_scores_ = temp_rb_scores
         self.Rb_values_ = temp_rb_values
@@ -577,7 +584,27 @@ class sparse_gcPCA():
         :param n_pcs: number of n_pcs to return
         :return: fitted sparse PCs for each lambda
         """
+
         betas_by_lambda = []
+        ### version to just run lasso
+        # for lmbd in lambda_array:  # looping through lambdas vector
+        #     A = V.copy()
+        #     # ####
+        #     # Elastic net (lasso) step
+        #     beta = []
+        #     for a in np.arange(V.shape[1]):  # Looping through PCs
+        #         y = M @ A[:, a]
+        #         # Solving L1 constrain with least angle regression
+        #         lasso_mdl = LassoLars(alpha=lmbd,
+        #                               fit_intercept=False)
+        #         lasso_mdl.fit(M, y)
+        #         beta.append(lasso_mdl.coef_)
+        #     betas = np.vstack(beta).T
+        #     temp_betas = np.divide(betas, LA.norm(betas, axis=0))
+        #     temp_betas[:,LA.norm(betas, axis=0)==0] = 0  # when norm is zero, returning nan
+        #     betas_by_lambda.append(temp_betas)
+
+        # version sparse PCA
         for lmbd in lambda_array:  # looping through lambdas vector
             A = V.copy()
             step, diff_criterion, criterion_past = 0, 1, 1e6
@@ -599,6 +626,7 @@ class sparse_gcPCA():
                 # Reduced Rank Procrustes rotation
                 u, _, v = LA.svd(M @ M.T @ betas, full_matrices=False)
                 A = u @ v
+
                 # Checking convergence of criterion
                 criterion = np.sum(LA.norm(M - (A @ betas.T @ M), axis=0)) + np.sum(lmbd * LA.norm(betas, ord=1, axis=0))
                 diff_criterion = np.abs(criterion_past - criterion)
