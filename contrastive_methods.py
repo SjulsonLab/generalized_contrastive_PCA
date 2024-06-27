@@ -297,7 +297,8 @@ class sparse_gcPCA():
                  alpha_null=0.975,
                  tol=1e-8,
                  max_steps=1000,
-                 cond_number=10 ** 13):
+                 cond_number=10 ** 13,
+                 flag_without_M=False):
 
         self.method = method
         self.Nshuffle = Nshuffle
@@ -312,6 +313,7 @@ class sparse_gcPCA():
         self.max_steps = max_steps
         self.Ra = None
         self.Rb = None
+        self.flag_without_M = flag_without_M
 
     
     def fit(self, Ra, Rb):
@@ -350,6 +352,9 @@ class sparse_gcPCA():
         """Method to find sparse loadings of gcPCA, based on Zou et al 2006
         sparse PCA method. It uses elastic net to identify the set of sparse
         loadings"""
+        #for testing purposes
+        flag_without_M = self.flag_without_M
+
         # covariance matrices
         RaRa = self.Ra.T.dot(self.Ra)
         RbRb = self.Rb.T.dot(self.Rb)
@@ -418,8 +423,8 @@ class sparse_gcPCA():
             #  Define numerator and denominator according to the method requested
             # JRaRaJ = LA.multi_dot((J.T, RaRa, J))
             # JRbRbJ = LA.multi_dot((J.T, RbRb, J))
-            RaJ = self.Ra@J@J.T # reducing data to J
-            RbJ = self.Rb@J@J.T # reducing data to J
+            RaJ = self.Ra#@J@J.T # reducing data to J
+            RbJ = self.Rb#@J@J.T # reducing data to J
             JRaRaJ = RaJ.T@RaJ
             JRbRbJ = RbJ.T@RbJ
 
@@ -467,7 +472,9 @@ class sparse_gcPCA():
             
             y = M@self.original_loadings_
             sigma = LA.multi_dot((LA.inv(M).T,numerator,LA.inv(M))) # EFO: projecting back to feature space
-
+            if flag_without_M:
+                y = self.original_loadings_
+                sigma = numerator
             ###
             
             # Getting eigenvectors
@@ -527,7 +534,8 @@ class sparse_gcPCA():
                     final_loadings.append(sigma_neg_loadings_)
                 else:
                     sigma_pos_loadings_ = LA.inv(M) @ Mpos_loadings_[a]
-                    # sigma_pos_loadings_ = Mpos_loadings_[a]
+                    if flag_without_M:
+                        sigma_pos_loadings_ = Mpos_loadings_[a]
                     final_loadings.append(sigma_pos_loadings_)
             # x_temp = LA.multi_dot((J, LA.inv(m), v))
         self.sparse_loadings_ = final_loadings
