@@ -261,8 +261,8 @@ class gcPCA():
                 Rb[:, b] = self.Rb[np.random.permutation(np.arange(nb)), b]
             # running the fit model again to get the null objective
             copy_obj.fit(Ra, Rb)
-            null_gcpca_values.append(copy_obj.gcPCA_values_)
-        self.null_gcPCA_values_ = np.vstack(null_gcpca_values)
+            null_gcpca_values.append(copy_obj.objective_values_)
+        self.null_objective_values_ = np.vstack(null_gcpca_values)
 
     def transform(self, Ra, Rb):
         try:
@@ -490,14 +490,29 @@ class sparse_gcPCA():
             final_loadings = []
             for a in np.arange(self.lambdas.shape[0]):
                 if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
-                    sigma_pos_loadings_ = LA.inv(M) @ theta_pos_loadings_[a]
-                    sigma_neg_loadings_ = LA.inv(M) @ theta_neg_loadings_[a]
+                    temp_pos_load = LA.inv(M) @ theta_pos_loadings_[a]
+                    # normalizing the loadings
+                    mag_pos = LA.norm(temp_pos_load, axis=0)
+                    mag_pos[mag_pos == 0] = 1  # to not divide by 0
+                    sigma_pos_loadings_ = temp_pos_load / mag_pos
+
+                    temp_neg_load = LA.inv(M) @ theta_neg_loadings_[a]
+                    mag_neg = LA.norm(temp_neg_load, axis=0)
+                    mag_neg[mag_neg == 0] = 1
+                    sigma_neg_loadings_ = temp_neg_load/mag_neg
+
                     final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
                 elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
-                    sigma_neg_loadings_ = LA.inv(M) @ theta_neg_loadings_[a]
+                    temp_neg_load = LA.inv(M) @ theta_neg_loadings_[a]
+                    mag_neg = LA.norm(temp_neg_load, axis=0)
+                    mag_neg[mag_neg == 0] = 1
+                    sigma_neg_loadings_ = temp_neg_load / mag_neg
                     final_loadings.append(sigma_neg_loadings_)
                 else:
-                    sigma_pos_loadings_ = LA.inv(M) @ theta_pos_loadings_[a]
+                    temp_pos_load = LA.inv(M) @ theta_pos_loadings_[a]
+                    mag_pos = LA.norm(temp_pos_load, axis=0)
+                    mag_pos[mag_pos == 0] = 1  # to not divide by 0
+                    sigma_pos_loadings_ = temp_pos_load / mag_pos
                     final_loadings.append(sigma_pos_loadings_)
         self.sparse_loadings_ = final_loadings
         
@@ -505,7 +520,9 @@ class sparse_gcPCA():
         temp_ra_values = []
         for sload in final_loadings:
             temp = np.dot(self.Ra,sload)
-            temp_ra_scores.append(np.divide(temp, LA.norm(temp,axis=0)))
+            temp_norm = LA.norm(temp,axis=0)
+            temp_norm[temp_norm == 0] = 1
+            temp_ra_scores.append(np.divide(temp,temp_norm))
             temp_ra_values.append(LA.norm(temp, axis=0))
 
         self.Ra_scores_ = temp_ra_scores
@@ -515,7 +532,9 @@ class sparse_gcPCA():
         temp_rb_values = []
         for sload in final_loadings:
             temp = np.dot(self.Rb,sload)
-            temp_rb_scores.append(np.divide(temp, LA.norm(temp, axis=0)))
+            temp_norm = LA.norm(temp, axis=0)
+            temp_norm[temp_norm == 0] = 1
+            temp_rb_scores.append(np.divide(temp,temp_norm))
             temp_rb_values.append(LA.norm(temp, axis=0))
 
         self.Rb_scores_ = temp_rb_scores
@@ -569,7 +588,8 @@ class sparse_gcPCA():
 
             if step >= self.max_steps:
                 warnings.warn('sparse gcPCA did not converge to tol., returning last iteration gcPCs')
-            temp_betas = np.divide(betas, LA.norm(betas, axis=0))
-            temp_betas[:,LA.norm(betas, axis=0)==0] = 0  # when norm is zero, returning nan
+            temp_norm = LA.norm(betas, axis=0)
+            temp_norm[temp_norm==0] = 1  # fixing for empty loadings matrix
+            temp_betas = np.divide(betas, temp_norm)
             betas_by_lambda.append(temp_betas)
         return betas_by_lambda  # Returning sparse PCs for each lambda
