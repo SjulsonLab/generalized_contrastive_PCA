@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 """
-Created on Thu May  4 17:52:12 2023
-
 Set of classes to do different contrastive methods in foreground (Ra) and
 background (Rb) that you want to compare, it's implemented here:
     v1 : contrastive PCA (Ra - alpha*Rb),
@@ -73,7 +71,7 @@ class gcPCA():
             self.Rb = Rb_temp
 
     def inspect_inputs(self):
-        """ Inspect the input data for multiple criterias, as number of
+        """ Inspect the input data for multiple criteria, as number of
         features, normalization and number of gcPCs possible to get vs
         number of gcPCs requested by the user."""
 
@@ -224,12 +222,12 @@ class gcPCA():
             s_total = np.divide(np.diagonal(numerator_orig), np.diagonal(denominator_orig))
                 
         self.loadings_ = x
-        temp = np.dot(Ra, x);
-        self.Ra_scores_ = np.divide(temp,LA.norm(temp,axis=0))
-        self.Ra_values_ = LA.norm(temp,axis=0)
-        temp = np.dot(Rb, x);
-        self.Rb_scores_ = np.divide(temp,LA.norm(temp,axis=0))
-        self.Rb_values_ = LA.norm(temp,axis=0)
+        temp = np.dot(Ra, x)
+        self.Ra_scores_ = np.divide(temp, LA.norm(temp, axis=0))
+        self.Ra_values_ = LA.norm(temp, axis=0)
+        temp = np.dot(Rb, x)
+        self.Rb_scores_ = np.divide(temp, LA.norm(temp, axis=0))
+        self.Rb_values_ = LA.norm(temp, axis=0)
         self.objective_function_ = obj_info
         self.objective_values_ = s_total
         
