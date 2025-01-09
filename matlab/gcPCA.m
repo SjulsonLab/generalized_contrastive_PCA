@@ -132,15 +132,15 @@ else
 end
 
 if gcPCAversion == 1
-    ZaJ = Za * J; % projecting into lower-D subspace spanned by J
-    ZbJ = Zb * J;
+    ZaZa = Za'*Za / (size(Za,1)-1);
+    ZbZb = Zb'*Zb / (size(Zb,1)-1);
     
-    AA = ZaJ'*ZaJ;
-    BB = ZbJ'*ZbJ;
+    JZaZaJ = J'*ZaZa*J; % projecting into lower-D subspace spanned by J
+    JZbZbJ = J'*ZbZb*J;
     obj_info = 'Ra - alpha*Rb';
     clear ZaJ ZbJ
     
-    sigma = AA - alpha*BB;
+    sigma = JZaZaJ - alpha*JZbZbJ;
     [y, D] = eig(sigma);
     [~, sortidx] = sort(diag(D), 'descend');
     clear D
@@ -150,54 +150,38 @@ if gcPCAversion == 1
     X = normalize(J * y, 'norm');
     
 else
-    denom_well_conditioned = false;
-    
+    track_index = zeros(1,Niter);
+    count_first_index = 1;
+    ZaZa = Za'*Za / (size(Za,1)-1);
+    ZbZb = Zb'*Zb / (size(Zb,1)-1);
     for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates once
         
         % calculate numerator and denominator for objective function
-        ZaJ = Za * J; % projecting into lower-D subspace spanned by J
-        ZbJ = Zb * J;
+        JZaZaJ = J'*ZaZa*J; % projecting into lower-D subspace spanned by J
+        JZbZbJ = J'*ZbZb*J;
         
         if gcPCAversion == 2 || gcPCAversion == 2.1 % calculating gcPCA using Ra/Rb objective function
-            numerator = ZaJ'*ZaJ; % calculating the lower-D covariance matrices
-            denominator = ZbJ'*ZbJ;
+            numerator = JZaZaJ; % calculating the lower-D covariance matrices
+            denominator = JZbZbJ;
             obj_info = 'Ra ./ Rb';
             
         elseif gcPCAversion == 3 || gcPCAversion == 3.1 % calculating gcPCA using (Ra-Rb)/Rb objective function
-            numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
-            denominator = ZbJ'*ZbJ;
+            numerator = JZaZaJ - JZbZbJ;
+            denominator = JZbZbJ;
             obj_info = '(Ra-Rb) ./ Rb';
             
         elseif gcPCAversion == 4 || gcPCAversion == 4.1 % calculating gcPCA using (Ra-Rb)/(Ra+Rb) objective function
-            numerator = ZaJ'*ZaJ - ZbJ'*ZbJ;
-            denominator = ZaJ'*ZaJ + ZbJ'*ZbJ;
+            numerator = JZaZaJ - JZbZbJ;
+            denominator = JZaZaJ + JZbZbJ;
             obj_info = '(Ra-Rb) ./ (Ra+Rb)';
-        end
-        clear ZaJ ZbJ
-        
-        % diagonal loading the denominator matrix if it's ill-conditioned. If
-        % we're iterating, we only need to test it until it's well-conditioned
-        % once, and it will always be well-conditioned after that
-        if denom_well_conditioned == false
-            denom_SVspectrum = svd(denominator);
-            if max(denom_SVspectrum)/min(denom_SVspectrum) > maxcond % matrix ill-conditioned
-                warning('Denominator matrix ill-conditioned. Regularizing...')
-                alpha = max(denom_SVspectrum)/maxcond - min(denom_SVspectrum); % approximately correct, close enough
-                denominator = denominator + alpha * eye(size(denominator));
-            else
-                denom_well_conditioned = true;
-            end
-            clear denom_SVspectrum alpha
         end
         
         % calculating the gcPCs
         M = sqrtm(denominator);
         clear denominator
         [y, D] = eig(M \ numerator / M);
-        %     [y, D] = eig(inv(M) * numerator * inv(M));
+        
         clear numerator
-        %     y = real(y); % there can be tiny imaginary parts due to numerical instability
-        %     D = real(diag(D));
         [D, sortidx] = sort(diag(D), 'descend');
         clear D
         y = y(:, sortidx);
@@ -211,7 +195,15 @@ else
             X = Xtemp;
             Xorth = []; % orthogonal version of X
         end
-        Xorth(:, idx) = Xtemp(:, 1);
+%         Xorth(:, idx) = Xtemp(:, 1);
+        if mod(idx,2) == 1
+            Xorth(:, idx) = Xtemp(:, 1);
+            track_index(idx) = count_first_index;
+            count_first_index = count_first_index+1;
+        elseif mod(idx,2) == 0
+            Xorth(:, idx) = Xtemp(:, end);
+            track_index(idx) = size(Xtemp,2)+count_first_index-1;
+        end
         clear Xtemp
         
         % shrinking J (find an orthonormal basis for the subspace of J orthogonal
@@ -222,8 +214,8 @@ else
     end
     
     if Niter > 1 % returning the orthogonalized version
-        % Xorig = X; % this is the original non-orthogonal X for comparison
-        X = Xorth;
+        [~,I] = sort(track_index);
+        X = Xorth(:,I);
     end
     clear Xorth
 end
@@ -303,7 +295,7 @@ end
 %% finish calculating S
 
 S.objective = obj_info;
-eval(['S.objval = ' obj_info ';']); % kludgy af
+eval(['S.objval = ' obj_info ';']); % kludgy 
 S.objval_info = 'value of the objective function';
 S.a = Ra;
 S.a_info = 'diagonal entries of S_a';

@@ -11,7 +11,7 @@ background (Rb) that you want to compare, it's implemented here:
 The original versions do not return orthogonal dimensions, for that you have to use 
 v2.1, v3.1 and v4.1 for each method respectively. Be aware this method is much slower
 
-The algorthim assumes you put samples in the rows and features in the columns,
+The algorithm assumes the samples are in the rows and features in the columns,
 as in n x p where n is the sample number and p is the feature number
 
 The method fit returns the following fields:
@@ -26,6 +26,7 @@ objetive_function_ : Objective function based on the method you picked.
 import warnings
 import numpy as np
 import numpy.linalg as LA
+import time
 
 # %% class for generalized contrastive PCA
 class gcPCA():
@@ -114,10 +115,15 @@ class gcPCA():
         self.Ra = Ra
         self.Rb = Rb
         
-        # inspecting whether the inputs are normalized and dimensionality to use
+        # inspecting whether the inputs are normalized and the dimensionality to use
         self.inspect_inputs()
         J = self.Jorig.copy()  # J shrinks every round, but Jorig is the first-round's J
-        
+
+        # covariance matrices
+        RaRa = (self.Ra.T @ self.Ra) / (self.Ra.shape[0] - 1)
+        RbRb = (self.Rb.T @ self.Rb) / (self.Rb.shape[0] - 1)
+
+        start_time = time.time()
         # in orthogonal gcPCA, we iterate multiple times
         if sum(np.char.equal(self.method, ['v2.1', 'v3.1', 'v4.1'])):
             n_iter = self.N_gcPCs
@@ -127,24 +133,27 @@ class gcPCA():
         # solving gcPCA
         if self.method == 'v1':  # original cPCA
             alpha = self.alpha
-            JRaRaJ = LA.multi_dot((J.T, self.Ra.T, self.Ra, J))
-            JRbRbJ = LA.multi_dot((J.T, self.Rb.T, self.Rb, J))
+            JRaRaJ = LA.multi_dot((J.T, RaRa, J))
+            JRbRbJ = LA.multi_dot((J.T, RbRb, J))
             sigma = JRaRaJ - alpha*JRbRbJ
 
             # getting eigenvalues and eigenvectors
             w, v = LA.eigh(sigma)
             eig_idx = np.argsort(w)[::-1]
             
-            x = J.dot(v[:, eig_idx])
+            x = J@v[:, eig_idx]
             s_total = w[eig_idx]
             obj_info = 'Ra - alpha * Rb'
         else:
 
             denom_well_conditioned = False
+            # for the ordering and keep tracking of the orthogonal gcPCA columns
+            ortho_column_order = []
+            count_dim = 0
             for idx in np.arange(n_iter):
                 # define numerator and denominator according to the method requested
-                JRaRaJ = LA.multi_dot((J.T, self.Ra.T, self.Ra, J))
-                JRbRbJ = LA.multi_dot((J.T, self.Rb.T, self.Rb, J))
+                JRaRaJ = LA.multi_dot((J.T, RaRa, J))
+                JRbRbJ = LA.multi_dot((J.T, RbRb, J))
                 
                 if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
                     numerator = JRaRaJ
@@ -166,11 +175,11 @@ class gcPCA():
                         warnings.warn('Denominator is ill-conditioned, fixing it. ' +
                                       'Be aware that gcPCA values will be' +
                                       'slightly smaller')
-                        
+
                         w = LA.eigvalsh(denominator)
                         w = w[np.argsort(w)[::-1]]
-                        alpha = w[0]/self.cond_number - w[-1]
-                        denominator = denominator + np.eye(denominator.shape[0])*alpha
+                        alpha = w[0] / self.cond_number - w[-1]
+                        denominator = denominator + np.eye(denominator.shape[0]) * alpha
                         denom_well_conditioned = True
                     else:
                         denom_well_conditioned = True
@@ -178,32 +187,44 @@ class gcPCA():
                 # Solving gcPCA
                 d, e = LA.eigh(denominator)
                 M = e * np.sqrt(d) @ e.T  # getting square root matrix M
+                Minv = LA.inv(M)  # inverse of the M matrix
                 
-                sigma = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M)))
+                sigma = LA.multi_dot((Minv.T, numerator, Minv))
                 # Getting eigenvectors
                 w, v = LA.eigh(sigma)
                 eig_idx = np.argsort(w)[::-1]
                 v = v[:, eig_idx]
                 
-                x_temp = LA.multi_dot((J, LA.inv(M), v))
+                x_temp = LA.multi_dot((J, Minv, v))
                 x_temp = np.divide(x_temp, LA.norm(x_temp, axis=0))
 
                 # Copy results to X
                 if idx == 0:
                     x = x_temp
                     x_orth = np.expand_dims(x_temp[:, 0], axis=1)
+                    ortho_column_order.append(count_dim)
+                    count_dim += 1
                 else:
-                    x_add = np.expand_dims(x_temp[:, 0], axis=1)
+                    # alternating between the first and last column of x_temp
+                    if (idx % 2) == 1:
+                        x_add = np.expand_dims(x_temp[:, -1], axis=1)
+                        ortho_column_order.append(x_temp.shape[1]+count_dim-1)
+                    elif (idx % 2) == 0:
+                        x_add = np.expand_dims(x_temp[:, 0], axis=1)
+                        ortho_column_order.append(count_dim)
+                        count_dim += 1
                     x_orth = np.hstack((x_orth, x_add))
                     
                 # shrinking J (find an orthonormal basis for the subspace of J orthogonal
                 # to the X vectors we have already collected)
                 j, _, _ = LA.svd(self.Jorig - LA.multi_dot((x_orth, x_orth.T, self.Jorig)), full_matrices=False)
                 J = j[:, :n_iter-(idx+1)]
-                
+
+            self.elapsed_time_ = time.time() - start_time
             # getting orthogonal loadings if it was method requested
             if sum(np.char.equal(self.method, ['v2.1', 'v3.1', 'v4.1'])):
-                x = x_orth
+                new_column_order = np.argsort(np.array(ortho_column_order))
+                x = x_orth[:, new_column_order]  # rearranging the columns to the original order
 
             # getting the eigenvalue of gcPCA
             RaX = Ra@x
@@ -265,8 +286,8 @@ class gcPCA():
     def transform(self, Ra, Rb):
         try:
             x = self.loadings_
-            Ra_transf = np.dot(Ra, x)
-            Rb_transf = np.dot(Rb, x)
+            Ra_transf = Ra@x
+            Rb_transf = Rb@x
             self.Ra_transformed_ = Ra_transf
             self.Rb_transformed_ = Rb_transf
         except:
@@ -284,10 +305,11 @@ class sparse_gcPCA():
                  normalize_flag=True,
                  Nsparse=np.inf,
                  Nshuffle=0,
-                 lambdas = np.exp(np.linspace(np.log(1e-2), np.log(1), num=10)),
+                 lasso_penalty=np.exp(np.linspace(np.log(1e-2), np.log(1), num=10)),
+                 ridge_penalty=0,
                  alpha=1,
                  alpha_null=0.975,
-                 tol=1e-8,
+                 tol=1e-5,
                  max_steps=1000,
                  cond_number=10 ** 13):
 
@@ -296,7 +318,8 @@ class sparse_gcPCA():
         self.normalize_flag = normalize_flag
         self.alpha = alpha
         self.alpha_null = alpha_null
-        self.lambdas = lambdas
+        self.lasso_penalty = lasso_penalty
+        self.ridge_penalty = ridge_penalty
         self.cond_number = cond_number
         self.Ncalc = Ncalc
         self.Nsparse = Nsparse
@@ -330,8 +353,8 @@ class sparse_gcPCA():
     def transform(self, Ra, Rb):
         try:
             x = self.sparse_loadings_
-            ra_transf = np.dot(Ra, x)
-            rb_transf = np.dot(Rb, x)
+            ra_transf = Ra@x
+            rb_transf = Rb@x
             self.Ra_transformed_ = ra_transf
             self.Rb_transformed_ = rb_transf
         except:
@@ -344,11 +367,15 @@ class sparse_gcPCA():
         loadings"""
 
         # covariance matrices
-        RaRa = self.Ra.T.dot(self.Ra)
-        RbRb = self.Rb.T.dot(self.Rb)
+        RaJ = self.Ra @ self.Jorig
+        RbJ = self.Rb @ self.Jorig
 
+        JRaRaJ = (RaJ.T@RaJ) / (RaJ.shape[0] - 1)
+        JRbRbJ = (RbJ.T@RbJ) / (RbJ.shape[0] - 1)
+
+        start_time = time.time()
         # solving for sparse gcPCA
-        if self.method == 'v1':  # original cPCA
+        if self.method == 'v1':  # original sparse cPCA
             # fitting again
             theta = RaRa - self.alpha * RbRb
 
@@ -356,7 +383,7 @@ class sparse_gcPCA():
             w, v = LA.eigh(theta)
             new_w_pos, new_w_neg = w.copy(), w.copy()
 
-            # Calculating only the requested amount by user
+            # Calculating only the number of dimensions requested by user
             n_gcpcs_pos = np.sum(new_w_pos > 0)
             if (n_gcpcs_pos - self.Nsparse) >= 0:
                 n_gcpcs_pos = self.Nsparse
@@ -377,147 +404,96 @@ class sparse_gcPCA():
             alpha_neg = new_w_neg.max() / self.cond_number  # fixing it to be positive definite
             theta_neg = v * np.sqrt(new_w_neg + alpha_neg) @ v.T
 
-            y_gcpc = self.original_loadings_
+            # if there is any positive eigenvalue
             if n_gcpcs_pos > 0:
-                theta_pos_loadings_ = self.spca_algorithm(theta_pos,
-                                                          y_gcpc[:, :n_gcpcs_pos],
-                                                          self.lambdas)
-            else:
-                theta_pos_loadings_ = []
+                final_pos_loadings = []
+                for lmbda in self.lasso_penalty:
+                    feature_space_loadings = self.J_variable_projection(theta_pos, self.Jorig, k=self.Nsparse,
+                                                                               alpha=lmbda, beta=self.ridge_penalty,
+                                                                               max_iter=self.max_steps, tol=self.tol)
+                    temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
+                    temp_load_norm[temp_load_norm == 0] = 1  # to not divide by 0
+                    final_pos_loadings.append(
+                        np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
 
-            if n_gcpcs_neg > 0:
-                theta_neg_loadings_ = self.spca_algorithm(theta_neg,
-                                                          y_gcpc[:, n_gcpcs_pos:n_gcpcs_pos + n_gcpcs_neg],
-                                                          self.lambdas)
             else:
-                theta_neg_loadings_ = []
+                final_pos_loadings_ = []
+
+            # if there is any negative eigenvalue
+            if n_gcpcs_neg > 0:
+                final_neg_loadings = []
+                for lmbda in self.lasso_penalty:
+                    feature_space_loadings = self.J_variable_projection(theta_neg, self.Jorig, k=self.Nsparse,
+                                                                               alpha=lmbda, beta=self.ridge_penalty,
+                                                                               max_iter=self.max_steps, tol=self.tol)
+                    temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
+                    temp_load_norm[temp_load_norm == 0] = 1  # to not divide by 0
+                    final_neg_loadings.append(
+                        np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
+            else:
+                final_neg_loadings_ = []
 
             # Rearranging the PCs by vectors
             final_loadings = []
             for a in np.arange(self.lambdas.shape[0]):
                 if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
-                    sigma_pos_loadings_ = theta_pos_loadings_[a]
-                    sigma_neg_loadings_ = theta_neg_loadings_[a]
+                    sigma_pos_loadings_ = final_pos_loadings_[a]
+                    sigma_neg_loadings_ = final_neg_loadings_[a]
                     final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
                 elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
-                    sigma_neg_loadings_ = theta_neg_loadings_[a]
+                    sigma_neg_loadings_ = final_neg_loadings_[a]
                     final_loadings.append(sigma_neg_loadings_)
                 else:
-                    sigma_pos_loadings_ = theta_pos_loadings_[a]
+                    sigma_pos_loadings_ = final_pos_loadings_[a]
                     final_loadings.append(sigma_pos_loadings_)
         else:
-            denom_well_conditioned = False
             #  Define numerator and denominator according to the method requested
             if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
-                numerator = RaRa
-                denominator = RbRb
+                numerator = JRaRaJ
+                denominator = JRbRbJ
                 obj_info = 'Ra / Rb'
             elif sum(np.char.equal(self.method, ['v3', 'v3.1'])):
-                numerator = RaRa - RbRb
-                denominator = RbRb
+                numerator = JRaRaJ - JRbRbJ
+                denominator = JRbRbJ
                 obj_info = '(Ra-Rb) / Rb'
             elif sum(np.char.equal(self.method, ['v4', 'v4.1'])):
-                numerator = RaRa - RbRb
-                denominator = RaRa + RbRb
+                numerator = JRaRaJ - JRbRbJ
+                denominator = JRaRaJ + JRbRbJ
                 obj_info = '(Ra-Rb) / (Ra+Rb)'
             else:
                 raise ValueError('Version input not recognized, please pick between v1-v4')
 
-            if not denom_well_conditioned:
-                if LA.cond(denominator) > self.cond_number:
-                    warnings.warn('Denominator is ill-conditioned, fixing it. ' +
-                                    'Be aware that gcPCA values will be' +
-                                    'slightly smaller')
-
-                    w = LA.eigvalsh(denominator)
-                    w = w[np.argsort(w)[::-1]]
-                    alpha = w[0] / self.cond_number - w[-1]
-                    denominator = denominator + np.eye(denominator.shape[0]) * alpha
-                    denom_well_conditioned = True
-                else:
-                    denom_well_conditioned = True
-
             # getting the square root matrix of denominator
             d, e = LA.eigh(denominator)
-            M = e * np.sqrt(d) @ e.T
-            
-            y_gcpc = M@self.original_loadings_
-            theta = LA.multi_dot((LA.inv(M).T, numerator, LA.inv(M)))
+            M = e * np.sqrt(d) @ e.T  # getting square root matrix M
+            Minv = LA.inv(M)
+
+            sigma = LA.multi_dot((Minv.T, numerator, Minv))
 
             ###
-            # Getting eigenvectors
-            w, v = LA.eigh(theta)
-            new_w_pos, new_w_neg = w.copy(), w.copy()
+            # Getting square root matrix of sigma
+            w, v = LA.eigh(sigma)
 
-            # Calculating only the requested amount by user
-            n_gcpcs_pos = np.sum(new_w_pos > 0)
-            if (n_gcpcs_pos - self.Nsparse) >= 0:
-                n_gcpcs_pos = self.Nsparse
-                n_gcpcs_neg = 0
-            else:
-                temp = self.Nsparse - n_gcpcs_pos
-                n_gcpcs_neg = temp
+            ##########
+            # off setting the eigenvalues to be positive definite
+            new_w = w.copy() + 2  # adding 2 to make it positive definite
+            theta_pos = (v * np.sqrt(new_w)) @ v.T
 
-            # separating positive and negative eigenvalues, flipping negative
-            new_w_pos[new_w_pos < 0] = 0
-            new_w_neg[new_w_neg > 0] = 0
-            new_w_neg[new_w_neg < 0] = new_w_neg[new_w_neg < 0] * -1  # Flipping the sign of negative eigenvalues
-
-            # Square root matrix of sigma plus
-            alpha_pos = new_w_pos.max() / self.cond_number  # fixing it to be positive definite
-            theta_pos = v * (np.sqrt(new_w_pos)+alpha_pos) @ v.T
-
-            alpha_neg = new_w_neg.max() / self.cond_number  # fixing it to be positive definite
-            theta_neg = v * (np.sqrt(new_w_neg)+alpha_neg) @ v.T
-
-            if n_gcpcs_pos > 0:
-                theta_pos_loadings_ = self.spca_algorithm(theta_pos,
-                                                     y_gcpc[:, :n_gcpcs_pos],
-                                                     self.lambdas)
-            else:
-                theta_pos_loadings_ = []
-
-            if n_gcpcs_neg > 0:
-                theta_neg_loadings_ = self.spca_algorithm(theta_neg,
-                                                     y_gcpc[:, n_gcpcs_pos:n_gcpcs_pos+n_gcpcs_neg],
-                                                     self.lambdas)
-            else:
-                theta_neg_loadings_ = []
-
-            # Rearranging the PCs by vectors
             final_loadings = []
-            for a in np.arange(self.lambdas.shape[0]):
-                if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
-                    temp_pos_load = LA.inv(M) @ theta_pos_loadings_[a]
-                    # normalizing the loadings
-                    mag_pos = LA.norm(temp_pos_load, axis=0)
-                    mag_pos[mag_pos == 0] = 1  # to not divide by 0
-                    sigma_pos_loadings_ = temp_pos_load / mag_pos
+            for lmbda in self.lasso_penalty:
+                feature_space_loadings = self.J_M_variable_projection(theta_pos, J=self.Jorig, M=M, k=self.Nsparse, alpha=lmbda, beta=self.ridge_penalty,
+                                                 max_iter=self.max_steps, tol=self.tol)
+                temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
+                temp_load_norm[temp_load_norm == 0] = 1  # to not divide by 0
+                final_loadings.append(np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
 
-                    temp_neg_load = LA.inv(M) @ theta_neg_loadings_[a]
-                    mag_neg = LA.norm(temp_neg_load, axis=0)
-                    mag_neg[mag_neg == 0] = 1
-                    sigma_neg_loadings_ = temp_neg_load/mag_neg
-
-                    final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
-                elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
-                    temp_neg_load = LA.inv(M) @ theta_neg_loadings_[a]
-                    mag_neg = LA.norm(temp_neg_load, axis=0)
-                    mag_neg[mag_neg == 0] = 1
-                    sigma_neg_loadings_ = temp_neg_load / mag_neg
-                    final_loadings.append(sigma_neg_loadings_)
-                else:
-                    temp_pos_load = LA.inv(M) @ theta_pos_loadings_[a]
-                    mag_pos = LA.norm(temp_pos_load, axis=0)
-                    mag_pos[mag_pos == 0] = 1  # to not divide by 0
-                    sigma_pos_loadings_ = temp_pos_load / mag_pos
-                    final_loadings.append(sigma_pos_loadings_)
+        self.elapsed_time_ = time.time() - start_time
         self.sparse_loadings_ = final_loadings
         
         temp_ra_scores = []
         temp_ra_values = []
         for sload in final_loadings:
-            temp = np.dot(self.Ra,sload)
+            temp = self.Ra@sload
             temp_norm = LA.norm(temp,axis=0)
             temp_norm[temp_norm == 0] = 1
             temp_ra_scores.append(np.divide(temp,temp_norm))
@@ -529,7 +505,7 @@ class sparse_gcPCA():
         temp_rb_scores = []
         temp_rb_values = []
         for sload in final_loadings:
-            temp = np.dot(self.Rb,sload)
+            temp = self.Rb@sload
             temp_norm = LA.norm(temp, axis=0)
             temp_norm[temp_norm == 0] = 1
             temp_rb_scores.append(np.divide(temp,temp_norm))
@@ -538,56 +514,193 @@ class sparse_gcPCA():
         self.Rb_scores_ = temp_rb_scores
         self.Rb_values_ = temp_rb_values
 
+    # using variable projection as an optimization strategy to the lasso lars, used in sPCA by benjamin erichson
+    def J_variable_projection(self, theta_input, J, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
+        # solves the sparse gcPCA problem using variable projection, used for v1 (cPCA)
+        # alpha is the lasso penalty and beta is the ridge penalty
 
-    def spca_algorithm(self, theta_input, V, lambda_array):
-        import matplotlib.pyplot as plt
-        from sklearn.linear_model import LassoLars
-        """
-        Algorithm that finds the sparse PCs, as described in Zou, Hastie and Tibshirani, 2006
-        :param lambda_array: array with values of lambda to fit the model
-        :param v: arrays of initial PCs or gcPCs, size n x PCs, colum-wise PCs
-        :param n_pcs: number of n_pcs to return
-        :return: fitted sparse PCs for each lambda
-        """
+        _, S, Vt = np.linalg.svd(theta_input, full_matrices=False)
+        Dmax = S[0]
+        B = Vt.T[:, :k]
 
-        betas_by_lambda = []
-        # version sparse PCA
-        for lmbd in lambda_array:  # looping through lambdas vector
-            if lmbd<1e-3:  # this number is empirical
-                warnings.warn('Small lambda might return incorrect loadings')
+        VD = Vt.T * S
+        VD2 = Vt.T * (S ** 2)
 
-            # print a message of which lambda is being fit
-            print('fitting sparse gcPCA lambda=' + str(lmbd))
-            Y = V.copy()
-            step, diff_criterion, criterion_past = 0, 1, 1e6
-            while (diff_criterion > self.tol and step < self.max_steps):
-                # ####
-                # Elastic net (lasso) step
-                beta = []
-                for a in np.arange(V.shape[1]):  # Looping through PCs
-                    y = theta_input @ Y[:, a]
+        # Set tuning parameters
+        alpha *= Dmax ** 2
+        beta *= Dmax ** 2
 
-                    # Solving L1 constrain with the least angle regression
-                    lasso_mdl = LassoLars(alpha=lmbd,
-                                          fit_intercept=False)
-                    lasso_mdl.fit(theta_input, y)
-                    beta.append(lasso_mdl.coef_)
-                betas = np.vstack(beta).T
-                # ###
-                # Reduced Rank Procrustes rotation
-                u, _, v = LA.svd((theta_input.dot(theta_input)) @ betas, full_matrices=False)
-                Y = u@v
+        nu = 1.0 / (Dmax ** 2 + beta)
+        kappa = nu * alpha
 
-                # Checking convergence of criterion
-                criterion = np.sum(LA.norm(theta_input - (Y @ betas.T @ theta_input), axis=0)) + np.sum(lmbd * LA.norm(betas, ord=1, axis=0))
-                diff_criterion = np.abs(criterion_past - criterion)
-                criterion_past = criterion.copy()  # update criterion
-                step += 1
+        obj = []
+        improvement = np.inf
 
-            if step >= self.max_steps:
-                warnings.warn('sparse gcPCA did not converge to tol., returning last iteration gcPCs')
-            temp_norm = LA.norm(betas, axis=0)
-            temp_norm[temp_norm==0] = 1  # fixing for empty loadings matrix
-            temp_betas = np.divide(betas, temp_norm)
-            betas_by_lambda.append(temp_betas)
-        return betas_by_lambda  # Returning sparse PCs for each lambda
+        # Apply Variable Projection Solver
+        VD2_Vt = VD2@Vt
+        for noi in range(1, max_iter+1):
+            # Update A: X'XB = UDV'
+            Z = VD2_Vt@B
+            U_Z, _, Vt_Z = np.linalg.svd(Z, full_matrices=False)
+            A = U_Z @ Vt_Z
+            ######
+
+            grad = (VD2 @ (Vt @ (A - B))) - beta * B  # Gradient step in the original space (PCA)
+            B_temp = J@B + nu * J@grad  # passing it to the feature space
+            B_temp_f = B_temp
+
+            # l1 soft_threshold
+            Bf = np.zeros_like(B_temp_f)
+            Bf[B_temp_f > kappa] = B_temp_f[B_temp_f > kappa] - kappa
+            Bf[B_temp_f <= -kappa] = B_temp_f[B_temp_f <= -kappa] + kappa
+
+            B = J.T@Bf  # returning it to the Y space from the feature space
+
+            R = VD.T - np.linalg.multi_dot((VD.T, B, A.T))  # residuals
+            obj_value = 0.5 * np.sum(R ** 2) + alpha * np.sum(np.abs(B)) + 0.5 * beta * np.sum(B ** 2)
+
+            obj.append(obj_value)
+
+            # Break if objective is not improving
+            if noi > 1:
+                improvement = (obj[noi - 2] - obj[noi - 1]) / obj[noi - 1]
+
+            if improvement < tol:
+                print("Improvement is smaller than the tolerance, stopping the optimization")
+                break
+
+            # Verbose output
+            if verbose and (noi % 10 == 0):
+                print(f"Iteration: {noi}, Objective: {obj_value:.5e}, Relative improvement: {improvement:.5e}")
+
+        loadings_ = Bf/LA.norm(Bf, axis=0)  # returning the feature space loadings
+        return loadings_
+
+    def M_variable_projection(self, theta_input, M=None, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
+        # solves the sparse gcPCA problem using variable projection
+        # alpha is the lasso penalty and beta is the ridge penalty
+        _, S, Vt = np.linalg.svd(theta_input, full_matrices=False)
+        Dmax = S[0]
+        B = Vt.T[:, :k]
+
+        VD = Vt.T * S
+        VD2 = Vt.T * (S ** 2)
+
+        # Set tuning parameters
+        alpha *= Dmax ** 2
+        beta *= Dmax ** 2
+
+        nu = 1.0 / (Dmax ** 2 + beta)
+        kappa = nu * alpha
+
+        obj = []
+        improvement = np.inf
+
+        # Apply Variable Projection Solver
+        VD2_Vt = VD2@Vt
+        Minv = LA.inv(M)
+        for noi in range(1, max_iter+1):
+            # Update A: X'XB = UDV'
+            Z = VD2_Vt@B
+            U_Z, _, Vt_Z = np.linalg.svd(Z, full_matrices=False)
+            A = U_Z @ Vt_Z
+            ######
+
+            ######
+            grad = (VD2_Vt @ (A - B)) - beta * B  # Gradient step in the original space
+            B_temp_f = (Minv@B) + nu * Minv@grad
+
+            # l1 soft_threshold
+            Bf = np.zeros_like(B_temp_f)
+            Bf[B_temp_f > kappa] = B_temp_f[B_temp_f > kappa] - kappa
+            Bf[B_temp_f <= -kappa] = B_temp_f[B_temp_f <= -kappa] + kappa
+
+            B = M @ Bf  # returning it to the Y space from the feature space
+            R = VD.T - LA.multi_dot((VD.T, B, A.T))
+            obj_value = 0.5 * np.sum(R ** 2) + alpha * np.sum(np.abs(B)) + 0.5 * beta * np.sum(B ** 2)
+
+            ######
+
+            obj.append(obj_value)
+
+            # Break if objective is not improving
+            if noi > 1:
+                improvement = (obj[noi - 2] - obj[noi - 1]) / obj[noi - 1]
+
+            if improvement < tol:
+                print("Improvement is smaller than the tolerance, stopping the optimization")
+                break
+
+            # Verbose output
+            if verbose and (noi % 10 == 0):
+                print(f"Iteration: {noi}, Objective: {obj_value:.5e}, Relative improvement: {improvement:.5e}")
+
+        loadings_ = Bf/LA.norm(B, axis=0)
+        return loadings_
+
+    def J_M_variable_projection(self, theta_input, J, M, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
+        # solves the sparse gcPCA (v2-4) problem using variable projection in the gcPCA space and penalizing in the feature space
+        # alpha is the lasso penalty and beta is the ridge penalty
+
+        _, S, Vt = np.linalg.svd(theta_input, full_matrices=False)
+        Dmax = S[0]
+        B = Vt.T[:, :k]
+
+        VD = Vt.T * S
+        VD2 = Vt.T * (S ** 2)
+
+        # Set tuning parameters
+        alpha *= Dmax ** 2
+        beta *= Dmax ** 2
+
+        nu = 1.0 / (Dmax ** 2 + beta)
+        kappa = nu * alpha
+
+        obj = []
+        improvement = np.inf
+
+        # Apply Variable Projection Solver
+        VD2_Vt = VD2@Vt
+        Minv = LA.inv(M)
+        JMinv = J@Minv
+        MJt = M@J.T
+        for noi in range(1, max_iter+1):
+            # Update A: X'XB = UDV'
+            Z = VD2_Vt@B
+            U_Z, _, Vt_Z = np.linalg.svd(Z, full_matrices=False)
+            A = U_Z @ Vt_Z
+            ######
+
+            ######
+            # Version passing from Y space to feature space
+            grad = (VD2_Vt @ (A - B)) - beta * B  # Gradient step in the original space
+            B_temp = JMinv@B + nu * JMinv@grad  # passing it to the feature space
+            B_temp_f = B_temp
+
+            # l1 soft_threshold
+            Bf = np.zeros_like(B_temp_f)
+            Bf[B_temp_f > kappa] = B_temp_f[B_temp_f > kappa] - kappa
+            Bf[B_temp_f <= -kappa] = B_temp_f[B_temp_f <= -kappa] + kappa
+
+            B = MJt @ Bf  # returning it to the Y space from the feature space
+
+            R = VD.T - LA.multi_dot((VD.T, B, A.T))
+            obj_value = 0.5 * np.sum(R ** 2) + alpha * np.sum(np.abs(B)) + 0.5 * beta * np.sum(B ** 2)
+
+            ######
+
+            obj.append(obj_value)
+            # Break if objective is not improving
+            if noi > 1:
+                improvement = (obj[noi - 2] - obj[noi - 1]) / obj[noi - 1]
+
+            if improvement < tol:
+                print("Improvement is smaller than the tolerance, stopping the optimization")
+                break
+
+            # Verbose output
+            if verbose and (noi % 10 == 0):
+                print(f"Iteration: {noi}, Objective: {obj_value:.5e}, Relative improvement: {improvement:.5e}")
+
+        loadings_ = Bf/LA.norm(Bf, axis=0)
+        return loadings_
