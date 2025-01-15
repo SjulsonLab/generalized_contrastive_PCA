@@ -1,6 +1,5 @@
 # Generalized Contrastive PCA
 
-
 Generalized contrastive PCA is a new dimensionality reduction method. It is a hyperparameter-free method for comparing high-dimensional datasets collected under different experimental conditions to reveal low-dimensional patterns enriched in one condition compared to the other. Unlike traditional dimensionality reduction methods like PCA, which work on a single condition, gcPCA allows for a direct comparison between conditions.
 
 This open-source toolbox includes implementations of gcPCA in both Python and MATLAB, with variants designed for different data types. It provides a straightforward, fast, and reliable way to compare conditions.
