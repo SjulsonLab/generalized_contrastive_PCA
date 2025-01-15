@@ -1,10 +1,12 @@
 # Generalized Contrastive PCA
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="./docs/images/gcpca_LIGHT.svg"  width="75%" title="gcpca" alt="gcpca" align="center" vspace = "100">
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/images/gcpca_DARK.svg" width="75%" title="gcpca" alt="gcpca" align="center" vspace = "100">
-  <img alt="Display the image exemplifying the uses of gcPCA" width="75%" title="gcPCA" alt="gcpca" align="center" vspace = "200">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./docs/images/gcpca_LIGHT.svg"  width="75%" title="gcpca" alt="gcpca" align="center" vspace = "100">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/gcpca_DARK.svg" width="75%" title="gcpca" alt="gcpca" align="center" vspace = "100">
+    <img alt="Display the image exemplifying the uses of gcPCA" width="75%" title="gcPCA" alt="gcpca" align="center" vspace = "200">
+  </picture>
+</p>
 
 Generalized contrastive PCA is a new dimensionality reduction method. It is a hyperparameter-free method for comparing high-dimensional datasets collected under different experimental conditions to reveal low-dimensional patterns enriched in one condition compared to the other. Unlike traditional dimensionality reduction methods like PCA, which work on a single condition, gcPCA allows for a direct comparison between condition.
 
