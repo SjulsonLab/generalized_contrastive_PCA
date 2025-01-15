@@ -1,14 +1,14 @@
 # Generalized Contrastive PCA
 
 
-Generalized contrastive PCA is a new dimensionality reduction method. It is a hyperparameter-free method for comparing high-dimensional datasets collected under different experimental conditions to reveal low-dimensional patterns enriched in one condition compared to the other. Unlike traditional dimensionality reduction methods like PCA, which work on a single condition, gcPCA allows for a direct comparison between condition.
+Generalized contrastive PCA is a new dimensionality reduction method. It is a hyperparameter-free method for comparing high-dimensional datasets collected under different experimental conditions to reveal low-dimensional patterns enriched in one condition compared to the other. Unlike traditional dimensionality reduction methods like PCA, which work on a single condition, gcPCA allows for a direct comparison between conditions.
 
 This open-source toolbox includes implementations of gcPCA in both Python and MATLAB, with variants designed for different data types. It provides a straightforward, fast, and reliable way to compare conditions.
 
 ##### Key Features
 - **Hyperparameter-free**: No manual tuning required.
 - **Symmetric comparison**: Both conditions are treated equally.
-- **Sparse solutions**: Reduce the results complexity for better interpretation.
+- **Sparse solutions**: Reduce the complexity of the results for better interpretation.
 - **Multiple implementations**: Available in both Python and MATLAB.
 
 You can find more details in the preprint at [bioRxiv](https://doi.org/10.1101/2024.08.08.607264)
@@ -48,7 +48,7 @@ from contrastive_methods import gcPCA
 gcPCA_model = gcPCA(method='v4',normalize_flag=True)
 ```
 
-Methods can be 'vn.1' or just 'vn', where n can vary from 1 to 4. versions ending
+Methods can be 'vn.1' or just 'vn', where n can vary from 1 to 4. Versions ending
 in .1 will return orthogonal dimensions. 'v4.1' corresponds to the (A-B)/(A+B)
 objective function, for the other versions please check for more information in the preprint in [bioRxiv](https://doi.org/10.1101/2024.08.08.607264)
 
@@ -60,11 +60,11 @@ Fitting the model:
 ```python
 gcPCA_model.fit(Ra,Rb)
 ```
-Ra (ma x p) and Rb (mb x p) are matrices of each experimental conditions (A and B),
+Ra (ma x p) and Rb (mb x p) are matrices of each experimental condition (A and B),
 with rows as samples (sizes ma and mb, respectively), and p features that are the
 same across the experimental conditions (neurons/channel/RNA etc)
 
-The model will have the outputs:
+The model will have the following outputs:
 ```python
 gcPCA_model.loadings_
 gcPCA_model.gcPCA_values_
@@ -106,4 +106,7 @@ More info on the output files can be found in `help gcPCA`
 ### Support and citing
 If gcPCA is useful in your work, we kindly request that you cite:
 
->  Eliezyer F. de Oliveira, Pranjal Garg, Jens Hjerling-Leffler, Renata Batista-Brito, and Lucas Sjulson. (2025). Identifying patterns differing between high-dimensional datasets with generalized contrastive PCA. [bioRxiv](https://doi.org/10.1101/2024.08.08.607264 )
+>  Eliezyer F. de Oliveira, Pranjal Garg, Jens Hjerling-Leffler, Renata Batista-Brito, and Lucas Sjulson. (2025). Identifying patterns differing between high-dimensional datasets with generalized contrastive PCA. [bioRxiv](https://doi.org/10.1101/2024.08.08.607264)
+
+### Contact us
+If you encounter any issues or have suggestions for improvements, feel free to open a GitHub issue. You can also reach out to the first and last authors of the gcPCA manuscript. If you find this project helpful, consider supporting us by clicking the “⭐ Star” button at the top right of the repository.
