@@ -27,12 +27,12 @@ import warnings
 import numpy as np
 import numpy.linalg as LA
 import time
+from numba import njit
+
+# optimized functions to speed up computation
 
 # %% class for generalized contrastive PCA
 class gcPCA():
-
-    """TO DO
-    [ ]add a method for doing fit for multiple alphas and returning multiple models """
 
     def __init__(self, method='v4',
                  Ncalc=np.inf,
@@ -108,7 +108,8 @@ class gcPCA():
         J = v.T.copy()
         self.N_gcPCs = n_gcpcs
         self.Jorig = J[:, :n_gcpcs]
-        
+
+
     def fit(self, Ra, Rb):
 
         # Assigning data to class
@@ -151,10 +152,10 @@ class gcPCA():
             ortho_column_order = []
             count_dim = 0
             for idx in np.arange(n_iter):
-                # define numerator and denominator according to the method requested
                 JRaRaJ = LA.multi_dot((J.T, RaRa, J))
                 JRbRbJ = LA.multi_dot((J.T, RbRb, J))
-                
+
+                # define numerator and denominator according to the method requested
                 if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
                     numerator = JRaRaJ
                     denominator = JRbRbJ
@@ -256,7 +257,8 @@ class gcPCA():
         # Shuffling to define a null distribution
         if self.Nshuffle > 0:
             self.null_distribution()
-        
+
+
     def null_distribution(self):
         import copy
         """The current null method is by shuffling the samples within a
@@ -377,7 +379,7 @@ class sparse_gcPCA():
         # solving for sparse gcPCA
         if self.method == 'v1':  # original sparse cPCA
             # fitting again
-            theta = RaRa - self.alpha * RbRb
+            theta = JRaRaJ - self.alpha * JRbRbJ
 
             # Getting eigenvectors
             w, v = LA.eigh(theta)
@@ -481,7 +483,7 @@ class sparse_gcPCA():
 
             final_loadings = []
             for lmbda in self.lasso_penalty:
-                feature_space_loadings = self.J_M_variable_projection(theta_pos, J=self.Jorig, M=M, k=self.Nsparse, alpha=lmbda, beta=self.ridge_penalty,
+                feature_space_loadings = J_M_variable_projection(theta_pos, J=self.Jorig, M=M, k=self.Nsparse, alpha=lmbda, beta=self.ridge_penalty,
                                                  max_iter=self.max_steps, tol=self.tol)
                 temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
                 temp_load_norm[temp_load_norm == 0] = 1  # to not divide by 0
@@ -638,7 +640,7 @@ class sparse_gcPCA():
         loadings_ = Bf/LA.norm(B, axis=0)
         return loadings_
 
-    def J_M_variable_projection(self, theta_input, J, M, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
+    def J_M_variable_projection_old(self, theta_input, J, M, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
         # solves the sparse gcPCA (v2-4) problem using variable projection in the gcPCA space and penalizing in the feature space
         # alpha is the lasso penalty and beta is the ridge penalty
 
@@ -695,7 +697,7 @@ class sparse_gcPCA():
                 improvement = (obj[noi - 2] - obj[noi - 1]) / obj[noi - 1]
 
             if improvement < tol:
-                print("Improvement is smaller than the tolerance, stopping the optimization")
+                # print("Improvement is smaller than the tolerance, stopping the optimization")
                 break
 
             # Verbose output
@@ -704,3 +706,88 @@ class sparse_gcPCA():
 
         loadings_ = Bf/LA.norm(Bf, axis=0)
         return loadings_
+
+@njit 
+def soft_threshold(x, kappa):
+    """ apply soft thresholding to x with threshold kappa """
+    if x > kappa:
+        return x - kappa
+    elif x < -kappa:
+        return x + kappa
+    else:
+        return 0.0
+
+@njit
+def l2_norm(x,axis=0):
+    return np.sqrt(np.sum(x**2,axis=axis))
+    
+@njit
+def J_M_variable_projection(theta_input, J, M, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):
+    # solves the sparse gcPCA (v2-4) problem using variable projection in the gcPCA space and penalizing in the feature space
+    # alpha is the lasso penalty and beta is the ridge penalty
+
+    _, S, Vt = np.linalg.svd(theta_input, full_matrices=False)
+    Dmax = S[0]
+    B = np.ascontiguousarray(Vt.T[:, :k])
+
+    VD = Vt.T * S
+    VD2 = Vt.T * (S ** 2)
+
+    # Set tuning parameters
+    alpha *= Dmax ** 2
+    beta *= Dmax ** 2
+
+    nu = 1.0 / (Dmax ** 2 + beta)
+    kappa = nu * alpha
+
+    obj = []
+    improvement = np.inf
+
+    # Apply Variable Projection Solver
+    VD2_Vt = VD2@Vt
+    Minv = LA.inv(M)
+    JMinv = J@Minv
+    MJt = M@J.T
+    for noi in range(1, max_iter+1):
+        # Update A: X'XB = UDV'
+        Z = VD2_Vt@B
+        U_Z, _, Vt_Z = np.linalg.svd(Z, full_matrices=False)
+        A = U_Z @ Vt_Z
+        ######
+
+        ######
+        # Version passing from Y space to feature space
+        grad = (VD2_Vt @ (A - B)) - beta * B  # Gradient step in the original space
+        B_temp = JMinv@B + nu * JMinv@grad  # passing it to the feature space
+        B_temp_f = B_temp
+
+        # l1 soft_threshold
+        Bf = np.zeros_like(B_temp_f)
+        for i in range(B_temp.shape[0]):
+            for j in range(B_temp.shape[1]):
+                Bf[i, j] = soft_threshold(B_temp_f[i, j], kappa)
+        # Bf[B_temp_f > kappa] = B_temp_f[B_temp_f > kappa] - kappa
+        # Bf[B_temp_f <= -kappa] = B_temp_f[B_temp_f <= -kappa] + kappa
+
+        B = MJt @ Bf  # returning it to the Y space from the feature space
+
+        R = VD.T - VD.T.dot(B).dot(A.T)  #LA.multi_dot((VD.T, B, A.T))
+        obj_value = 0.5 * np.sum(R ** 2) + alpha * np.sum(np.abs(B)) + 0.5 * beta * np.sum(B ** 2)
+
+        ######
+
+        obj.append(obj_value)
+        # Break if objective is not improving
+        if noi > 1:
+            improvement = (obj[noi - 2] - obj[noi - 1]) / obj[noi - 1]
+
+        if improvement < tol:
+            # print("Improvement is smaller than the tolerance, stopping the optimization")
+            break
+
+        # Verbose output
+        # if verbose and (noi % 10 == 0):
+        #     print(f"Iteration: {noi}, Objective: {obj_value:.5e}, Relative improvement: {improvement:.5e}")
+
+    loadings_ = Bf/l2_norm(Bf, axis=0)
+    return loadings_
