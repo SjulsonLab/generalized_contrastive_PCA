@@ -8,9 +8,9 @@ This open-source toolbox includes implementations of gcPCA in both Python and MA
 - **Hyperparameter-free**: No manual tuning required.
 - **Symmetric comparison**: Both conditions are treated equally.
 - **Sparse solutions**: Reduce the complexity of the results for better interpretation.
-- **Multiple implementations**: Available in both Python and MATLAB.
+- **Multiple implementations**: Available in both Python and MATLAB (R implementation on the way!).
 
-You can find more details in the preprint at [bioRxiv](https://doi.org/10.1101/2024.08.08.607264)
+You can find more details in our paper at [PLOS Computational Biology](https://doi.org/10.1371/journal.pcbi.1012747)
 
 
 <p align="center">
@@ -21,7 +21,7 @@ You can find more details in the preprint at [bioRxiv](https://doi.org/10.1101/2
   </picture>
 </p>
 
- 
+If you find this project helpful, consider supporting us by clicking the “⭐ Star” button at the top right of the repository.
 --------------------------------------------------------------------------------
 ### Installation
 
@@ -105,7 +105,7 @@ More info on the output files can be found in `help gcPCA`
 ### Support and citing
 If gcPCA is useful in your work, we kindly request that you cite:
 
->  Eliezyer F. de Oliveira, Pranjal Garg, Jens Hjerling-Leffler, Renata Batista-Brito, and Lucas Sjulson. (2025). Identifying patterns differing between high-dimensional datasets with generalized contrastive PCA. [bioRxiv](https://doi.org/10.1101/2024.08.08.607264)
+>  Eliezyer F. de Oliveira, Pranjal Garg, Jens Hjerling-Leffler, Renata Batista-Brito, and Lucas Sjulson. (2025). Identifying patterns differing between high-dimensional datasets with generalized contrastive PCA. [PLOS Computational Biology]( https://doi.org/10.1371/journal.pcbi.1012747)
 
 ### Contact us
 If you encounter any issues or have suggestions for improvements, feel free to open a GitHub issue. You can also reach out to the first and last authors of the gcPCA manuscript. If you find this project helpful, consider supporting us by clicking the “⭐ Star” button at the top right of the repository.
