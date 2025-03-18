@@ -28,6 +28,7 @@ import numpy as np
 import numpy.linalg as LA
 import time
 from numba import njit
+from scipy import stats
 
 # optimized functions to speed up computation
 
@@ -54,7 +55,6 @@ class gcPCA():
 
     def normalize(self):
         """ Normalize the data to zscore and norm. """
-        from scipy import stats
 
         Ra_temp = np.divide(stats.zscore(self.Ra),
                             LA.norm(stats.zscore(self.Ra), axis=0))
