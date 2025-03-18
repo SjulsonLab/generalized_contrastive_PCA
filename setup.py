@@ -6,7 +6,7 @@ setup(
     author='Eliezyer de Oliveira, Lucas Sjulson',
     author_email='eliezyer.deoliveira@gmail.com',
     description='Python implementation of generalized contrastive PCA methods.',
-    packages=find_packages(),
+    packages=find_packages(include=['generalized_contrastive_PCA']),
     install_requires=[
         'numpy',
         'scipy',
