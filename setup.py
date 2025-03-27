@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='generalized_contrastive_PCA',
-    version='0.1.0',
+    version='1.0.2',
     author='Eliezyer de Oliveira, Lucas Sjulson',
     author_email='eliezyer.deoliveira@gmail.com',
     description='Python implementation of generalized contrastive PCA methods.',
