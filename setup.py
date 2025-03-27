@@ -11,8 +11,6 @@ setup(
         'numpy',
         'scipy',
         'numba',
-        'warnings',
-        'time'
     ],
     url='https://github.com/SjulsonLab/generalized_contrastive_PCA',
     classifiers=[
