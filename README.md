@@ -26,15 +26,28 @@ If you find this project helpful, consider supporting us by clicking the “⭐ 
 ### Installation
 
 1. Install [conda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/download.html) in your machine
-2. Download this repository
-3. On a conda terminal pointed to your copy of this repository, run the following command:
+2. Create an environment to use the package
+
 ```
-  - conda env create -f environment.yml
+conda create --name gcPCA python=3.9
+```
+
+Activate the conda environment
+
+```
+conda activate gcPCA
+```
+
+
+3. Install the package
+
+```
+pip install generalized_contrastive_PCA
 ```
 
 ### Alternative Installation
 
-If you have an environment you want to use with gcPCA, you can just refer to the class gcPCA in the file `contrastive_methods.py`, at this version the only dependencies are: warnings, numpy, scipy, and time.
+If you have an environment you want to use with gcPCA, you can just refer to the class gcPCA in the file `contrastive_methods.py`, at this version the only dependencies are: numpy and scipy, and numba.
 
 --------------------------------------------------------------------------------
 ### Usage
@@ -43,7 +56,7 @@ If you have an environment you want to use with gcPCA, you can just refer to the
 To import the class and initialize the model:
 
 ```python
-from contrastive_methods import gcPCA
+from generalized_contrastive_PCA import gcPCA
 gcPCA_model = gcPCA(method='v4',normalize_flag=True)
 ```
 

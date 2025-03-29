@@ -1,0 +1,13 @@
+name: tutorial_gcPCA
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9
+  - numpy
+  - scipy
+  - pip
+  - pip:
+      - generalized-contrastive-pca
+      - marimo

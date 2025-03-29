@@ -7,9 +7,7 @@ dependencies:
   - pip:
     - numpy
     - pandas
+    - numba
     - scipy
     - matplotlib
-    - sklearn
-    - allensdk
-    - pynapple
-    - contrastive
+    - generalized_contrastive_PCA
