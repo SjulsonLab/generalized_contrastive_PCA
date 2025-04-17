@@ -13,3 +13,4 @@ dependencies:
   - pip:
       - generalized-contrastive-pca
       - marimo
+      - jupyter
