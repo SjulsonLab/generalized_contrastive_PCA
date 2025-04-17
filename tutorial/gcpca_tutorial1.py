@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.30"
+__generated_with = "0.12.7"
 app = marimo.App(width="medium", auto_download=["ipynb"])
 
 
@@ -215,10 +215,10 @@ def _(gcPCA_model, gridspec, mpl, n_samples, np, plt):
 def _(mo):
     mo.md(
         r"""
-        ### Interpretaion and comparison to PCA
+        ### Interpretation and comparison to PCA
 
-        From the previous plot, you can notice that the gcPCA values are not maximizing the data explained within a single dataset (last two right plots), that is because the method is maximizing the data explained in condition A that is minimized in condition B, and vice versa. 
-        This maximization of relative variance can be better observed in the lower left panel plot of objective values. There are two proeminent objective values of gcPCA that are positive, which reflects the gcPCs related to condition A. There are also two proeminent gcPCs that are negative, and they reflect condition B.
+        From the previous plot, you can notice that the gcPCA values do not maximize the data explained within a single dataset (the last two right plots). That is because the method maximizes the data explained in condition A while minimizes in condition B, and vice versa. 
+        This maximization of relative variance can be better observed in the lower left panel plot of objective values. Two prominent objective values of gcPCA are positive, reflecting the gcPCs related to condition A. Two prominent gcPCs are negative, reflecting condition B.
 
         Let's compare the results of gcPCA and PCA for condition A
         """
@@ -283,7 +283,7 @@ def _(U, V, data_A, gcPCA_model, gridspec, hsv_col, make_square, np, plt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""The top PCs do not identify the latent factors we created in the toy data, that's because its variance is very low compared to other latent factors, the top PCs explain about 3-2% of the data's variance. The gcPCA can succesfully identify the latents we created in the toy data, and the variance they explain is very low because they reflect dimensions of low variance. The variance of only the first 10 dimensions of each method is shown.""")
+    mo.md(r"""The top PCs do not identify the latent factors we created in the toy data. That's because its variance is very low compared to other latent factors, the top PCs explain about 3-2% of the data's variance. The gcPCA can successfully identify the latent variables we created in the toy data, and the variance they explain is very low because they reflect dimensions of low variance. The variance of only the first 10 dimensions of each method is shown.""")
     return
 
 

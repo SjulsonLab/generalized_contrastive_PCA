@@ -8,6 +8,7 @@ dependencies:
   - numpy
   - scipy
   - pandas
+  - matplotlib
   - pip
   - pip:
       - generalized-contrastive-pca
