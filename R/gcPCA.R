@@ -27,7 +27,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
     }
 
     # discard dimensions if nececssary, whichever is smaller sets the number of gcPCs
-    n_gcpcs <- min(nrow(Ra), nrow(Rb))
+    n_gcpcs <- min(ncol(Ra), ncol(Rb))
 
     # SVD of the combined data
     RaRb <- rbind(Ra, Rb)
@@ -51,7 +51,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
     }
 
     J <- svd_result$v
-    return(list(n_gcpcs = n_gcpcs, J = J[, 1:n_gcpcs], Ra = Ra, Rb = Rb))
+    return(list(n_gcpcs = n_gcpcs, J = J[, 1:n_gcpcs, drop=FALSE], Ra = Ra, Rb = Rb))
   }
 
   # Fit the gcPCA model
@@ -77,7 +77,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
       JRbRbJ <- t(J) %*% RbRb %*% J
       sigma <- JRaRaJ - alpha * JRbRbJ
 
-      eig <- eigen(sigma)
+      eig <- eigen(sigma, symmetric = TRUE)
       w <- eig$values
       v <- eig$vectors
       eig_idx <- order(w, decreasing = TRUE)
@@ -94,8 +94,16 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
       x <- NULL
       x_orth <- NULL
 
+      # number of iterations defined based on method being orthogonal or not
+      if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
+        n_iter <- n_gcpcs
+      } else {
+        n_iter <- 1
+      }
+
+
       # loop over the number of gcPCs (for orthogonal gcPCA only)
-      for (idx in 1:n_gcpcs) {
+      for (idx in 1:(n_iter-1)) {
         # covariance matrices projected in the shared J space
         JRaRaJ <- t(J) %*% RaRa %*% J
         JRbRbJ <- t(J) %*% RbRb %*% J
@@ -121,7 +129,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
         if (!denom_well_conditioned) {
           if (kappa(denominator) > cond_number) {
             warning('Denominator is ill-conditioned, fixing it.')
-            w <- eigen(denominator)$values
+            w <- eigen(denominator, symmetric = TRUE)$values
             w <- w[order(w, decreasing = TRUE)]
             alpha <- w[1] / cond_number - w[length(w)]
             denominator <- denominator + diag(nrow(denominator)) * alpha
@@ -132,20 +140,22 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
         }
 
         # solving gcPCA
-        d <- eigen(denominator)$values
-        e <- eigen(denominator)$vectors
+        eig_den <- eigen(denominator, symmetric = TRUE)
+        d <- eig_den$values
+        e <- eig_den$vectors
         M <- e %*% diag(sqrt(d)) %*% t(e)  # square root of the denominator
         Minv <- solve(M)  # inverse of the M matrix
         sigma <- t(Minv) %*% numerator %*% Minv
 
         # getting eigenvectors
-        eig <- eigen(sigma)
+        eig <- eigen(sigma, symmetric = TRUE)
         w <- eig$values
         v <- eig$vectors
         eig_idx <- order(w, decreasing = TRUE)
         v <- v[, eig_idx]
         x_temp <- J %*% Minv %*% v
-        x_temp <- x_temp / norm(x_temp, type = "2")
+        # x_temp <- x_temp / norm(x_temp, type = "2")
+        x_temp <- sweep(x_temp, 2, sqrt(colSums(x_temp^2)), "/")
 
         #copying results to X and X_orth
         if (idx == 1) {
@@ -167,8 +177,10 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
 
         # shrinking J (find an orthonormal basis for the subspace of J orthogonal to x_orth)
         j <- svd(J - x_orth %*% t(x_orth) %*% J)$u
-        J <- j[, 1:(n_gcpcs - idx)]
+        J <- j[, 1:(n_gcpcs - idx),drop=FALSE]
       }
+      x_orth<-cbind(x_orth, J)
+      ortho_column_order <- c(ortho_column_order, count_dim)
 
       # getting the orthogonal gcPCA loadings if it was requested
       if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
@@ -235,5 +247,29 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
     return(null_gcpca_values)
   }
 
-  return(fit(Ra, Rb))
+  result <- fit(Ra, Rb)
+  class(result) <- "gcPCA"
+  return(result)
+}
+
+predict.gcPCA <- function(object, Rnew, ...) {
+  # object: result of gcPCA(...)
+  # newdata: matrix with same columns as Ra/Rb used in fitting
+  
+  if (missing(Rnew)) {
+    # Return training scores if newdata not supplied
+    return(object$Ra_scores)
+  }
+  
+  Rnew <- as.matrix(Rnew)
+  loadings <- object$loadings
+
+  # Normalize new data if gcPCA was fitted with normalization
+  if (object$normalize_flag) {
+    Rnew <- object$normalize(Rnew)
+  }
+  
+  # Projecting new data onto gcPCA loadings
+  scores <- Rnew %*% loadings
+  scores
 }
