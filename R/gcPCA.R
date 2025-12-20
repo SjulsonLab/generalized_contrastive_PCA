@@ -184,8 +184,12 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
         j <- svd(J - x_orth %*% t(x_orth) %*% J)$u
         J <- j[, 1:(n_gcpcs - idx),drop=FALSE]
       }
-      x_orth<-cbind(x_orth, J)
-      ortho_column_order <- c(ortho_column_order, count_dim)
+      
+      # For orthogonal methods, combine results
+      if (n_iter > 1) {
+        x_orth<-cbind(x_orth, J)
+        ortho_column_order <- c(ortho_column_order, count_dim)
+      }
 
       # getting the orthogonal gcPCA loadings if it was requested
       if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
@@ -254,6 +258,9 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
   }
 
   result <- fit(Ra, Rb)
+  result$normalize_flag <- normalize_flag
+  result$normalize <- normalize
+  result$method <- method
   class(result) <- "gcPCA"
   return(result)
 }
