@@ -3,7 +3,15 @@
 # Implementation of gcPCA in R, it is not yet guaranteed that this implementation is correct and works, still need to run some tests
 # The Generalized Contrastive PCA (gcPCA) is a method to find the most contrastive dimensions between data collected under different conditions
 # 
-gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_flag = TRUE, alpha = 1, alpha_null = 0.975, cond_number = 10^13) {
+gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_flag = TRUE, alpha = 1, alpha_null = 0.975, cond_number = 10^13) {
+  
+  #checking inputs
+  stopifnot(is.matrix(Ra), is.matrix(Rb))
+  stopifnot(ncol(Ra) == ncol(Rb))
+  stopifnot(method %in% c("v1","v2","v2.1","v3","v3.1","v4","v4.1"))
+  
+  #setting Ncalc
+  if (is.null(Ncalc)) Ncalc <- ncol(Ra)
   
   # initializing variables
   null_gcpca_values <- NULL
@@ -16,9 +24,6 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
 
   # inspect the data size
   inspect_inputs <- function(Ra, Rb) {
-    if (ncol(Ra) != ncol(Rb)) {
-      stop("Ra and Rb have different numbers of features")
-    }
 
     # normalize the data
     if (normalize_flag) {
@@ -26,7 +31,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
       Rb <- normalize(Rb)
     }
 
-    # discard dimensions if nececssary, whichever is smaller sets the number of gcPCs
+    # discard dimensions if necessary, whichever is smaller sets the number of gcPCs
     n_gcpcs <- min(ncol(Ra), ncol(Rb))
 
     # SVD of the combined data
@@ -95,15 +100,15 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
       x_orth <- NULL
 
       # number of iterations defined based on method being orthogonal or not
-      if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
-        n_iter <- n_gcpcs
+      if (method %in% c("v2.1", "v3.1", "v4.1")) {
+        loop_idx <- 1:(n_gcpcs - 1)    # orthogonal version
       } else {
-        n_iter <- 1
+        loop_idx <- 1:1                # standard version
       }
 
 
       # loop over the number of gcPCs (for orthogonal gcPCA only)
-      for (idx in 1:(n_iter-1)) {
+      for (idx in loop_idx) {
         # covariance matrices projected in the shared J space
         JRaRaJ <- t(J) %*% RaRa %*% J
         JRbRbJ <- t(J) %*% RbRb %*% J
@@ -223,7 +228,8 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
 
     return(list(loadings = loadings_, Ra_scores = Ra_scores_, Ra_values = Ra_values_,
                 Rb_scores = Rb_scores_, Rb_values = Rb_values_, objective_function = objective_function_,
-                objective_values = objective_values_, null_gcpca_values = null_gcpca_values))
+                objective_values = objective_values_, null_gcpca_values = null_gcpca_values, Ra = Ra,
+                Rb = Rb, J = J, normalize_flag = normalize_flag))
   }
 
   # Null distribution for shuffling, not completely tested yet
@@ -252,24 +258,48 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = Inf, Nshuffle = 0, normalize_fl
   return(result)
 }
 
-predict.gcPCA <- function(object, Rnew, ...) {
-  # object: result of gcPCA(...)
-  # newdata: matrix with same columns as Ra/Rb used in fitting
-  
-  if (missing(Rnew)) {
-    # Return training scores if newdata not supplied
-    return(object$Ra_scores)
-  }
-  
-  Rnew <- as.matrix(Rnew)
-  loadings <- object$loadings
+# TODO: fix the variables anmes to be transform or something else that is not scores
 
-  # Normalize new data if gcPCA was fitted with normalization
-  if (object$normalize_flag) {
-    Rnew <- object$normalize(Rnew)
+predict.gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
+  # object: result of gcPCA
+  # newdata: matrix with same columns as Ra/Rb used in fitting
+
+  if (is.null(Ra) && is.null(Rb)) {
+    # Return training scores if newdata not supplied
+    return(list(Ra_scores = object$Ra_scores, Rb_scores = object$Rb_scores))
   }
-  
-  # Projecting new data onto gcPCA loadings
-  scores <- Rnew %*% loadings
-  scores
+
+  loadings <- object$loadings
+  Ra_scores <- NULL
+  Rb_scores <- NULL
+
+  # Process Ra if provided
+  if (!is.null(Ra)) {
+    Ra <- as.matrix(Ra)
+    # Normalize new data if gcPCA was fitted with normalization
+    if (object$normalize_flag) {
+      Ra <- object$normalize(Ra)
+    }
+    # Project new data onto gcPCA loadings
+    Ra_scores <- Ra %*% loadings
+  } else {
+    # TODO: apply Ra_values to the scores so it matches
+    Ra_scores <- object$Ra_scores
+  }
+
+  # Process Rb if provided
+  if (!is.null(Rb)) {
+    Rb <- as.matrix(Rb)
+    # Normalize new data if gcPCA was fitted with normalization
+    if (object$normalize_flag) {
+      Rb <- object$normalize(Rb)
+    }
+    # Project new data onto gcPCA loadings
+    Rb_scores <- Rb %*% loadings
+  } else {
+    # TODO: apply Rb_values to the scores so it matches
+    Rb_scores <- object$Rb_scores
+  }
+
+  return(list(Ra_scores = Ra_scores, Rb_scores = Rb_scores))
 }
