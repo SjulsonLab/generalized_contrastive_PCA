@@ -47,6 +47,7 @@ sparse_gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, normalize_flag = T
       new_w_neg <- -pmin(w, 0)
       
       # Calculating only the number of dimensions requested by user
+      # TODO: J_variable_projection needs to be implemented
       final_loadings <- lapply(lasso_penalty, function(lmbda) {
         pos_load <- J_variable_projection(v %*% diag(sqrt(new_w_pos)) %*% t(v), Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)
         neg_load <- J_variable_projection(v %*% diag(sqrt(new_w_neg)) %*% t(v), Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)

@@ -102,8 +102,10 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
       # number of iterations defined based on method being orthogonal or not
       if (method %in% c("v2.1", "v3.1", "v4.1")) {
         loop_idx <- 1:(n_gcpcs - 1)    # orthogonal version
+        orthogonal_method <- TRUE
       } else {
         loop_idx <- 1:1                # standard version
+        orthogonal_method <- FALSE
       }
 
 
@@ -186,7 +188,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
       }
       
       # For orthogonal methods, combine results
-      if (n_iter > 1) {
+      if (orthogonal_method) {
         x_orth<-cbind(x_orth, J)
         ortho_column_order <- c(ortho_column_order, count_dim)
       }
@@ -265,15 +267,14 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
   return(result)
 }
 
-# TODO: fix the variables anmes to be transform or something else that is not scores
-
 predict.gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
   # object: result of gcPCA
   # newdata: matrix with same columns as Ra/Rb used in fitting
 
   if (is.null(Ra) && is.null(Rb)) {
     # Return training scores if newdata not supplied
-    return(list(Ra_scores = object$Ra_scores, Rb_scores = object$Rb_scores))
+    return(list(Ra_scores = object$Ra_scores * object$Ra_values,
+                Rb_scores = object$Rb_scores * object$Rb_values))
   }
 
   loadings <- object$loadings
@@ -290,8 +291,8 @@ predict.gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
     # Project new data onto gcPCA loadings
     Ra_scores <- Ra %*% loadings
   } else {
-    # TODO: apply Ra_values to the scores so it matches
-    Ra_scores <- object$Ra_scores
+    # Apply Ra_values to the scores so it matches magnitude with new data
+    Ra_scores <- object$Ra_scores * object$Ra_values
   }
 
   # Process Rb if provided
@@ -304,8 +305,8 @@ predict.gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
     # Project new data onto gcPCA loadings
     Rb_scores <- Rb %*% loadings
   } else {
-    # TODO: apply Rb_values to the scores so it matches
-    Rb_scores <- object$Rb_scores
+    # Apply Rb_values to the scores so it matches magnitude with new data
+    Rb_scores <- object$Rb_scores * object$Rb_values
   }
 
   return(list(Ra_scores = Ra_scores, Rb_scores = Rb_scores))
