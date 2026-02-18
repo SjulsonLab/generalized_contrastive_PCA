@@ -82,12 +82,13 @@ function [loadings] = J_variable_projection(theta, J, varargin)
         % Check convergence, break if objective is not improving
         if iter > 1
             improvement = abs(obj - old_obj);
-    
+        end
+
         if improvement < tol
             break
         end
         old_obj = obj;
-        
+
         if verbose && mod(iter, 10) == 0
             fprintf('Iteration %d: Objective = %f, Improvement = %f\n', iter, obj, improvement);
         end

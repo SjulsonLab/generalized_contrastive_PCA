@@ -213,6 +213,37 @@ for (method in c("v2", "v3", "v4")) {
   }
 }
 
+# ---- Test sparse_gcPCA v1: basic fit ----
+
+cat("\n--- sparse_gcPCA v1 ---\n")
+
+result <- tryCatch({
+  mdl <- sparse_gcPCA(Ra_sm, Rb_sm, method = "v1", Nsparse = 2, lasso_penalty = lambdas)
+  TRUE
+}, error = function(e) {
+  cat(sprintf("  ERROR in sparse v1: %s\n", e$message))
+  FALSE
+})
+assert(result, "sparse_gcPCA v1 fits without error")
+
+if (result) {
+  mdl <- sparse_gcPCA(Ra_sm, Rb_sm, method = "v1", Nsparse = 2, lasso_penalty = lambdas)
+  assert(length(mdl$sparse_loadings) == length(lambdas),
+         "sparse_gcPCA v1: correct number of loading sets")
+  assert(nrow(mdl$sparse_loadings[[1]]) == p_sm,
+         "sparse_gcPCA v1: loadings have correct number of rows")
+}
+
+# ---- Test sparse_gcPCA v1: scores output ----
+
+cat("\n--- sparse_gcPCA v1 scores ---\n")
+
+mdl <- sparse_gcPCA(Ra_sm, Rb_sm, method = "v1", Nsparse = 2, lasso_penalty = lambdas)
+assert(length(mdl$Ra_scores) == length(lambdas), "v1 Ra_scores list length matches lambdas")
+assert(length(mdl$Rb_scores) == length(lambdas), "v1 Rb_scores list length matches lambdas")
+assert(length(mdl$Ra_values) == length(lambdas), "v1 Ra_values list length matches lambdas")
+assert(length(mdl$Rb_values) == length(lambdas), "v1 Rb_values list length matches lambdas")
+
 # ---- Test sparse_gcPCA: scores output ----
 
 cat("\n--- sparse_gcPCA scores ---\n")

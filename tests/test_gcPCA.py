@@ -287,6 +287,41 @@ class TestSparseGcPCA:
         assert hasattr(mdl, "original_loadings_")
         assert mdl.original_loadings_.shape[0] == Ra.shape[1]
 
+    def test_fit_v1(self, small_data):
+        """sparse_gcPCA should fit with v1 (contrastive PCA) method."""
+        Ra, Rb = small_data
+        mdl = sparse_gcPCA(method="v1", Nsparse=2,
+                           lasso_penalty=np.array([0.1, 0.5]))
+        mdl.fit(Ra, Rb)
+
+        assert hasattr(mdl, "sparse_loadings_")
+        assert len(mdl.sparse_loadings_) == 2  # one per lambda
+        for loadings in mdl.sparse_loadings_:
+            assert loadings.shape[0] == Ra.shape[1]
+
+    def test_v1_scores_output(self, small_data):
+        """v1 sparse scores and values should be lists matching number of lambdas."""
+        Ra, Rb = small_data
+        n_lambdas = 3
+        mdl = sparse_gcPCA(method="v1", Nsparse=2,
+                           lasso_penalty=np.array([0.01, 0.1, 1.0]))
+        mdl.fit(Ra, Rb)
+
+        assert len(mdl.Ra_scores_) == n_lambdas
+        assert len(mdl.Rb_scores_) == n_lambdas
+        assert len(mdl.Ra_values_) == n_lambdas
+        assert len(mdl.Rb_values_) == n_lambdas
+
+    def test_v1_transform(self, small_data):
+        """v1 transform() should work after fit."""
+        Ra, Rb = small_data
+        mdl = sparse_gcPCA(method="v1", Nsparse=2,
+                           lasso_penalty=np.array([0.1]))
+        mdl.fit(Ra, Rb)
+        mdl.transform(Ra, Rb)
+        assert hasattr(mdl, "Ra_transformed_")
+        assert hasattr(mdl, "Rb_transformed_")
+
 
 # ---------------------------------------------------------------------------
 # Numba utility function tests

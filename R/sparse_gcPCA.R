@@ -41,17 +41,59 @@ sparse_gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, normalize_flag = T
       eig <- eigen(theta)
       w <- eig$values
       v <- eig$vectors
-      
+
       # Split positive/negative eigenvalues
       new_w_pos <- pmax(w, 0)
       new_w_neg <- -pmin(w, 0)
-      
+
       # Calculating only the number of dimensions requested by user
-      # TODO: J_variable_projection needs to be implemented
-      final_loadings <- lapply(lasso_penalty, function(lmbda) {
-        pos_load <- J_variable_projection(v %*% diag(sqrt(new_w_pos)) %*% t(v), Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)
-        neg_load <- J_variable_projection(v %*% diag(sqrt(new_w_neg)) %*% t(v), Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)
-        cbind(pos_load, neg_load)
+      n_gcpcs_pos <- sum(new_w_pos > 0)
+      if ((n_gcpcs_pos - Nsparse) >= 0) {
+        n_gcpcs_pos <- Nsparse
+        n_gcpcs_neg <- 0
+      } else {
+        n_gcpcs_neg <- Nsparse - n_gcpcs_pos
+      }
+
+      # Square root matrices
+      alpha_pos <- max(new_w_pos) / cond_number
+      theta_pos <- v %*% diag(sqrt(new_w_pos + alpha_pos)) %*% t(v)
+
+      alpha_neg <- max(new_w_neg) / cond_number
+      theta_neg <- v %*% diag(sqrt(new_w_neg + alpha_neg)) %*% t(v)
+
+      # Compute loadings for positive and negative eigenvalues separately
+      if (n_gcpcs_pos > 0) {
+        final_pos_loadings <- lapply(lasso_penalty, function(lmbda) {
+          fl <- J_variable_projection(theta_pos, Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)
+          norms <- apply(fl, 2, l2_norm_vec)
+          norms[norms == 0] <- 1
+          sweep(fl, 2, norms, "/")
+        })
+      } else {
+        final_pos_loadings <- list()
+      }
+
+      if (n_gcpcs_neg > 0) {
+        final_neg_loadings <- lapply(lasso_penalty, function(lmbda) {
+          fl <- J_variable_projection(theta_neg, Jorig, Nsparse, lmbda, ridge_penalty, max_steps, tol)
+          norms <- apply(fl, 2, l2_norm_vec)
+          norms[norms == 0] <- 1
+          sweep(fl, 2, norms, "/")
+        })
+      } else {
+        final_neg_loadings <- list()
+      }
+
+      # Rearranging the PCs by vectors
+      final_loadings <- lapply(seq_along(lasso_penalty), function(a) {
+        if (n_gcpcs_pos > 0 && n_gcpcs_neg > 0) {
+          cbind(final_pos_loadings[[a]], final_neg_loadings[[a]])
+        } else if (n_gcpcs_pos == 0 && n_gcpcs_neg > 0) {
+          final_neg_loadings[[a]]
+        } else {
+          final_pos_loadings[[a]]
+        }
       })
       
     } else {
@@ -176,8 +218,59 @@ sparse_gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, normalize_flag = T
     return(loadings_)
   }
   
-  #J variable projection
-  #TODO: WRITE THE J_variable_projection FUNCTION
+  # J variable projection (for v1 / contrastive PCA path — no M matrix)
+  J_variable_projection <- function(theta_input, J, k, alpha, beta, max_iter, tol) {
+    svd_theta <- svd(theta_input)
+    Dmax <- svd_theta$d[1]
+    B <- svd_theta$v[, 1:k, drop = FALSE]
+
+    VD <- sweep(svd_theta$v, 2, svd_theta$d, "*")
+    VD2 <- sweep(svd_theta$v, 2, svd_theta$d^2, "*")
+
+    # tuning parameters
+    alpha_scaled <- alpha * Dmax^2
+    beta_scaled <- beta * Dmax^2
+    nu <- 1 / (Dmax^2 + beta_scaled)
+    kappa <- nu * alpha_scaled
+
+    obj <- numeric(0)
+    improvement <- Inf
+
+    # reducing computations in the loop
+    VD2_Vt <- VD2 %*% t(svd_theta$v)
+
+    for (iter in 1:max_iter) {
+      Z <- VD2_Vt %*% B
+      svd_Z <- svd(Z)
+      A <- svd_Z$u %*% t(svd_Z$v)
+
+      # gradient update (no M matrix — use J directly)
+      grad <- VD2 %*% (t(svd_theta$v) %*% (A - B)) - beta_scaled * B
+      B_temp <- J %*% B + nu * J %*% grad
+
+      # L1 soft thresholding
+      Bf <- ifelse(B_temp > kappa, B_temp - kappa,
+                   ifelse(B_temp < -kappa, B_temp + kappa, 0))
+
+      # returning it to the Y space from the feature space
+      B <- t(J) %*% Bf
+
+      R <- t(VD) - t(VD) %*% B %*% t(A)
+      obj_value <- 0.5 * sum(R^2) + alpha_scaled * sum(abs(B)) + 0.5 * beta_scaled * sum(B^2)
+      obj <- c(obj, obj_value)
+
+      # check convergence
+      if (iter > 1) {
+        improvement <- (obj[iter - 1] - obj[iter]) / obj[iter]
+        if (improvement < tol) break
+      }
+    }
+
+    # l2 norm for normalization
+    l2_norms <- apply(Bf, 2, l2_norm_vec)
+    loadings_ <- sweep(Bf, 2, l2_norms, FUN = "/")
+    return(loadings_)
+  }
   
   # execute and return results
   result <- sparse_fit()

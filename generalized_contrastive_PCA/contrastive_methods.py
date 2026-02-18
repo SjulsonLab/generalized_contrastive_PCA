@@ -419,7 +419,7 @@ class sparse_gcPCA():
                         np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
 
             else:
-                final_pos_loadings_ = []
+                final_pos_loadings = []
 
             # if there is any negative eigenvalue
             if n_gcpcs_neg > 0:
@@ -433,21 +433,21 @@ class sparse_gcPCA():
                     final_neg_loadings.append(
                         np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
             else:
-                final_neg_loadings_ = []
+                final_neg_loadings = []
 
             # Rearranging the PCs by vectors
             final_loadings = []
-            for a in np.arange(self.lambdas.shape[0]):
+            for a in np.arange(self.lasso_penalty.shape[0]):
                 if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
-                    sigma_pos_loadings_ = final_pos_loadings_[a]
-                    sigma_neg_loadings_ = final_neg_loadings_[a]
-                    final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
+                    sigma_pos_loadings = final_pos_loadings[a]
+                    sigma_neg_loadings = final_neg_loadings[a]
+                    final_loadings.append(np.concatenate((sigma_pos_loadings, sigma_neg_loadings), axis=1))
                 elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
-                    sigma_neg_loadings_ = final_neg_loadings_[a]
-                    final_loadings.append(sigma_neg_loadings_)
+                    sigma_neg_loadings = final_neg_loadings[a]
+                    final_loadings.append(sigma_neg_loadings)
                 else:
-                    sigma_pos_loadings_ = final_pos_loadings_[a]
-                    final_loadings.append(sigma_pos_loadings_)
+                    sigma_pos_loadings = final_pos_loadings[a]
+                    final_loadings.append(sigma_pos_loadings)
         else:
             #  Define numerator and denominator according to the method requested
             if sum(np.char.equal(self.method, ['v2', 'v2.1'])):
