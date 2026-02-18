@@ -11,14 +11,16 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
   stopifnot(method %in% c("v1","v2","v2.1","v3","v3.1","v4","v4.1"))
   
   #setting Ncalc
-  if (is.null(Ncalc)) Ncalc <- ncol(Ra)
+  if (is.null(Ncalc)) Ncalc <- Inf
   
   # initializing variables
   null_gcpca_values <- NULL
   # function to normalize the data to zscore and norm
   normalize <- function(data) {
     data <- scale(data)
-    data <- data / norm(data, type = "2")
+    col_norm <- sqrt(colSums(data^2))
+    col_norm[col_norm == 0] <- 1
+    data <- sweep(data, 2, col_norm, "/")
     return(data)
   }
 
@@ -32,7 +34,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
     }
 
     # discard dimensions if necessary, whichever is smaller sets the number of gcPCs
-    n_gcpcs <- min(ncol(Ra), ncol(Rb))
+    n_gcpcs <- min(nrow(Ra), nrow(Rb), ncol(Ra))
 
     # SVD of the combined data
     RaRb <- rbind(Ra, Rb)
@@ -101,7 +103,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
 
       # number of iterations defined based on method being orthogonal or not
       if (method %in% c("v2.1", "v3.1", "v4.1")) {
-        loop_idx <- 1:(n_gcpcs - 1)    # orthogonal version
+        loop_idx <- 1:n_gcpcs          # orthogonal version
         orthogonal_method <- TRUE
       } else {
         loop_idx <- 1:1                # standard version
@@ -134,11 +136,12 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
 
         # check if the denominator is well-conditioned
         if (!denom_well_conditioned) {
-          if (kappa(denominator) > cond_number) {
+          if (kappa(denominator) > cond_number || min(eigen(denominator, symmetric = TRUE)$values) <= 0) {
             warning('Denominator is ill-conditioned, fixing it.')
             w <- eigen(denominator, symmetric = TRUE)$values
             w <- w[order(w, decreasing = TRUE)]
-            alpha <- w[1] / cond_number - w[length(w)]
+            alpha <- max(w[1] / cond_number - w[length(w)],
+                         .Machine$double.eps * max(1, abs(w[1])))
             denominator <- denominator + diag(nrow(denominator)) * alpha
             denom_well_conditioned <- TRUE
           } else {
@@ -150,8 +153,9 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
         eig_den <- eigen(denominator, symmetric = TRUE)
         d <- eig_den$values
         e <- eig_den$vectors
+        d <- pmax(d, .Machine$double.eps * max(1, max(d)))
         M <- e %*% diag(sqrt(d)) %*% t(e)  # square root of the denominator
-        Minv <- solve(M)  # inverse of the M matrix
+        Minv <- e %*% diag(1 / sqrt(d)) %*% t(e)
         sigma <- t(Minv) %*% numerator %*% Minv
 
         # getting eigenvectors
@@ -162,7 +166,9 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
         v <- v[, eig_idx]
         x_temp <- J %*% Minv %*% v
         # x_temp <- x_temp / norm(x_temp, type = "2")
-        x_temp <- sweep(x_temp, 2, sqrt(colSums(x_temp^2)), "/")
+        x_norm <- sqrt(colSums(x_temp^2))
+        x_norm[x_norm == 0] <- 1
+        x_temp <- sweep(x_temp, 2, x_norm, "/")
 
         #copying results to X and X_orth
         if (idx == 1) {
@@ -188,11 +194,6 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
       }
       
       # For orthogonal methods, combine results
-      if (orthogonal_method) {
-        x_orth<-cbind(x_orth, J)
-        ortho_column_order <- c(ortho_column_order, count_dim)
-      }
-
       # getting the orthogonal gcPCA loadings if it was requested
       if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
         new_column_order <- order(ortho_column_order)
@@ -216,15 +217,21 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
         denominator_orig <- XRaRaX + XRbRbX
       }
 
-      s_total <- diag(numerator_orig) / diag(denominator_orig)
+      denom_diag <- diag(denominator_orig)
+      denom_diag[abs(denom_diag) < .Machine$double.eps] <- .Machine$double.eps
+      s_total <- diag(numerator_orig) / denom_diag
     }
 
     # preparing results to send back
     loadings_ <- x
-    Ra_scores_ <- Ra %*% x / norm(Ra %*% x, type = "2")
-    Ra_values_ <- norm(Ra %*% x, type = "2")
-    Rb_scores_ <- Rb %*% x / norm(Rb %*% x, type = "2")
-    Rb_values_ <- norm(Rb %*% x, type = "2")
+    Ra_proj <- Ra %*% x
+    Rb_proj <- Rb %*% x
+    Ra_values_ <- sqrt(colSums(Ra_proj^2))
+    Rb_values_ <- sqrt(colSums(Rb_proj^2))
+    Ra_values_[Ra_values_ == 0] <- 1
+    Rb_values_[Rb_values_ == 0] <- 1
+    Ra_scores_ <- sweep(Ra_proj, 2, Ra_values_, "/")
+    Rb_scores_ <- sweep(Rb_proj, 2, Rb_values_, "/")
     objective_function_ <- obj_info
     objective_values_ <- s_total
 

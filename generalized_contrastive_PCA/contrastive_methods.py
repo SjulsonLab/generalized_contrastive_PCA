@@ -32,6 +32,19 @@ from scipy import stats
 
 # optimized functions to speed up computation
 
+
+def _regularize_psd(matrix, cond_number):
+    """Regularize a symmetric matrix to be numerically positive definite."""
+    evals = LA.eigvalsh(matrix)
+    evals = np.sort(evals)[::-1]
+    max_eval = evals[0]
+    min_eval = evals[-1]
+    eps_shift = np.finfo(float).eps * max(1.0, abs(max_eval))
+    alpha = max(max_eval / cond_number - min_eval, eps_shift)
+    if LA.cond(matrix) > cond_number or min_eval <= 0:
+        return matrix + np.eye(matrix.shape[0]) * alpha, True
+    return matrix, False
+
 # %% class for generalized contrastive PCA
 class gcPCA():
 
@@ -172,23 +185,18 @@ class gcPCA():
                     raise ValueError('Version input not recognized, please pick between v1-v4')
 
                 if not denom_well_conditioned:
-                    if LA.cond(denominator) > self.cond_number:
+                    denominator, was_regularized = _regularize_psd(denominator, self.cond_number)
+                    if was_regularized:
                         warnings.warn('Denominator is ill-conditioned, fixing it. ' +
                                       'Be aware that gcPCA values will be' +
                                       'slightly smaller')
-
-                        w = LA.eigvalsh(denominator)
-                        w = w[np.argsort(w)[::-1]]
-                        alpha = w[0] / self.cond_number - w[-1]
-                        denominator = denominator + np.eye(denominator.shape[0]) * alpha
-                        denom_well_conditioned = True
-                    else:
-                        denom_well_conditioned = True
+                    denom_well_conditioned = True
                 
                 # Solving gcPCA
                 d, e = LA.eigh(denominator)
+                d = np.maximum(d, np.finfo(float).eps)
                 M = e * np.sqrt(d) @ e.T  # getting square root matrix M
-                Minv = LA.inv(M)  # inverse of the M matrix
+                Minv = e * (1.0 / np.sqrt(d)) @ e.T  # inverse sqrt matrix
                 
                 sigma = LA.multi_dot((Minv.T, numerator, Minv))
                 # Getting eigenvectors
@@ -241,17 +249,24 @@ class gcPCA():
             elif sum(np.char.equal(self.method, ['v4', 'v4.1'])):
                 numerator_orig = XRaRaX - XRbRbX
                 denominator_orig = XRaRaX + XRbRbX
-            s_total = np.divide(np.diagonal(numerator_orig), np.diagonal(denominator_orig))
+            denom_diag = np.diagonal(denominator_orig).copy()
+            denom_diag[np.abs(denom_diag) < np.finfo(float).eps] = np.finfo(float).eps
+            s_total = np.divide(np.diagonal(numerator_orig), denom_diag)
                 
         self.loadings_ = x
         temp = np.dot(Ra, x)
-        self.Ra_scores_ = np.divide(temp, LA.norm(temp, axis=0))
+        ra_norm = LA.norm(temp, axis=0)
+        ra_norm[ra_norm == 0] = 1
+        self.Ra_scores_ = np.divide(temp, ra_norm)
         self.Ra_values_ = LA.norm(temp, axis=0)
         temp = np.dot(Rb, x)
-        self.Rb_scores_ = np.divide(temp, LA.norm(temp, axis=0))
+        rb_norm = LA.norm(temp, axis=0)
+        rb_norm[rb_norm == 0] = 1
+        self.Rb_scores_ = np.divide(temp, rb_norm)
         self.Rb_values_ = LA.norm(temp, axis=0)
         self.objective_function_ = obj_info
         self.objective_values_ = s_total
+        self.gcPCA_values_ = s_total
         
                 
         # Shuffling to define a null distribution
@@ -286,14 +301,14 @@ class gcPCA():
         self.null_objective_values_ = np.vstack(null_gcpca_values)
 
     def transform(self, Ra, Rb):
-        try:
-            x = self.loadings_
-            Ra_transf = Ra@x
-            Rb_transf = Rb@x
-            self.Ra_transformed_ = Ra_transf
-            self.Rb_transformed_ = Rb_transf
-        except:
-            print('Loadings not defined, you have to first fit the model')   
+        if not hasattr(self, 'loadings_'):
+            raise AttributeError('Loadings not defined, you have to first fit the model')
+        x = self.loadings_
+        Ra_transf = Ra@x
+        Rb_transf = Rb@x
+        self.Ra_transformed_ = Ra_transf
+        self.Rb_transformed_ = Rb_transf
+
     def fit_transform(self, Ra, Rb):
         self.fit(Ra, Rb)
         self.transform(Ra, Rb)
@@ -353,14 +368,13 @@ class sparse_gcPCA():
         self.sparse_fitting()
 
     def transform(self, Ra, Rb):
-        try:
-            x = self.sparse_loadings_
-            ra_transf = Ra@x
-            rb_transf = Rb@x
-            self.Ra_transformed_ = ra_transf
-            self.Rb_transformed_ = rb_transf
-        except:
-            print('Loadings not defined, you have to first fit the model')
+        if not hasattr(self, 'sparse_loadings_'):
+            raise AttributeError('Loadings not defined, you have to first fit the model')
+        x = self.sparse_loadings_
+        ra_transf = Ra@x
+        rb_transf = Rb@x
+        self.Ra_transformed_ = ra_transf
+        self.Rb_transformed_ = rb_transf
 
     # ancillary method
     def sparse_fitting(self):
@@ -410,7 +424,7 @@ class sparse_gcPCA():
             if n_gcpcs_pos > 0:
                 final_pos_loadings = []
                 for lmbda in self.lasso_penalty:
-                    feature_space_loadings = self.J_variable_projection(theta_pos, self.Jorig, k=self.Nsparse,
+                    feature_space_loadings = self.J_variable_projection(theta_pos, self.Jorig, k=n_gcpcs_pos,
                                                                                alpha=lmbda, beta=self.ridge_penalty,
                                                                                max_iter=self.max_steps, tol=self.tol)
                     temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
@@ -419,13 +433,13 @@ class sparse_gcPCA():
                         np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
 
             else:
-                final_pos_loadings_ = []
+                final_pos_loadings = []
 
             # if there is any negative eigenvalue
             if n_gcpcs_neg > 0:
                 final_neg_loadings = []
                 for lmbda in self.lasso_penalty:
-                    feature_space_loadings = self.J_variable_projection(theta_neg, self.Jorig, k=self.Nsparse,
+                    feature_space_loadings = self.J_variable_projection(theta_neg, self.Jorig, k=n_gcpcs_neg,
                                                                                alpha=lmbda, beta=self.ridge_penalty,
                                                                                max_iter=self.max_steps, tol=self.tol)
                     temp_load_norm = LA.norm(feature_space_loadings, axis=0)  # getting the norm of each dimensions
@@ -433,20 +447,20 @@ class sparse_gcPCA():
                     final_neg_loadings.append(
                         np.divide(feature_space_loadings, temp_load_norm))  # normalizing the dimensions and saving it
             else:
-                final_neg_loadings_ = []
+                final_neg_loadings = []
 
             # Rearranging the PCs by vectors
             final_loadings = []
-            for a in np.arange(self.lambdas.shape[0]):
+            for a in np.arange(len(self.lasso_penalty)):
                 if n_gcpcs_pos > 0 and n_gcpcs_neg > 0:
-                    sigma_pos_loadings_ = final_pos_loadings_[a]
-                    sigma_neg_loadings_ = final_neg_loadings_[a]
+                    sigma_pos_loadings_ = final_pos_loadings[a]
+                    sigma_neg_loadings_ = final_neg_loadings[a]
                     final_loadings.append(np.concatenate((sigma_pos_loadings_, sigma_neg_loadings_), axis=1))
                 elif n_gcpcs_pos == 0 and n_gcpcs_neg > 0:
-                    sigma_neg_loadings_ = final_neg_loadings_[a]
+                    sigma_neg_loadings_ = final_neg_loadings[a]
                     final_loadings.append(sigma_neg_loadings_)
                 else:
-                    sigma_pos_loadings_ = final_pos_loadings_[a]
+                    sigma_pos_loadings_ = final_pos_loadings[a]
                     final_loadings.append(sigma_pos_loadings_)
         else:
             #  Define numerator and denominator according to the method requested
@@ -466,9 +480,13 @@ class sparse_gcPCA():
                 raise ValueError('Version input not recognized, please pick between v1-v4')
 
             # getting the square root matrix of denominator
+            denominator, was_regularized = _regularize_psd(denominator, self.cond_number)
+            if was_regularized:
+                warnings.warn('Denominator is ill-conditioned in sparse fitting, fixing it.')
             d, e = LA.eigh(denominator)
+            d = np.maximum(d, np.finfo(float).eps)
             M = e * np.sqrt(d) @ e.T  # getting square root matrix M
-            Minv = LA.inv(M)
+            Minv = e * (1.0 / np.sqrt(d)) @ e.T
 
             sigma = LA.multi_dot((Minv.T, numerator, Minv))
 
@@ -637,7 +655,7 @@ class sparse_gcPCA():
             if verbose and (noi % 10 == 0):
                 print(f"Iteration: {noi}, Objective: {obj_value:.5e}, Relative improvement: {improvement:.5e}")
 
-        loadings_ = Bf/LA.norm(B, axis=0)
+        loadings_ = Bf/LA.norm(Bf, axis=0)
         return loadings_
 
     def J_M_variable_projection_old(self, theta_input, J, M, k=None, alpha=1e-4, beta=1e-4, max_iter=1000, tol=1e-5, verbose=True):

@@ -191,14 +191,15 @@ if gcPCAversion == 1
     final_loadings = [];
     for lambda_idx = 1:length(lasso_penalty)
         if n_gcpcs_pos>0 && n_gcpcs_neg>0
-            array_idx = Nsparse*(lambda_idx-1)+1:Nsparse*lambda_idx;
-            final_loadings = [final_loadings , cat(2, final_pos_loadings(:,array_idx), final_neg_loadings(:,array_idx))];
+            pos_idx = n_gcpcs_pos*(lambda_idx-1)+1:n_gcpcs_pos*lambda_idx;
+            neg_idx = n_gcpcs_neg*(lambda_idx-1)+1:n_gcpcs_neg*lambda_idx;
+            final_loadings = [final_loadings , cat(2, final_pos_loadings(:,pos_idx), final_neg_loadings(:,neg_idx))];
         elseif n_gcpcs_pos == 0 && n_gcpcs_neg>0
-            array_idx = Nsparse*(lambda_idx-1)+1:Nsparse*lambda_idx;
-            final_loadings = [final_loadings, final_neg_loadings(:,array_idx)];
+            neg_idx = n_gcpcs_neg*(lambda_idx-1)+1:n_gcpcs_neg*lambda_idx;
+            final_loadings = [final_loadings, final_neg_loadings(:,neg_idx)];
         else
-            array_idx = Nsparse*(lambda_idx-1)+1:Nsparse*lambda_idx;
-            final_loadings = [final_loadings, final_pos_loadings(:,array_idx)];
+            pos_idx = n_gcpcs_pos*(lambda_idx-1)+1:n_gcpcs_pos*lambda_idx;
+            final_loadings = [final_loadings, final_pos_loadings(:,pos_idx)];
         end
         
     end
@@ -330,4 +331,3 @@ for idx = 1:p
 end
 
 end
-
