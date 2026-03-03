@@ -18,7 +18,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
   # function to normalize the data to zscore and norm
   normalize <- function(data) {
     data <- scale(data)
-    data <- data / norm(data, type = "2")
+    data <- sweep(data, 2, sqrt(colSums(data^2)), "/")
     return(data)
   }
 
@@ -32,7 +32,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
     }
 
     # discard dimensions if necessary, whichever is smaller sets the number of gcPCs
-    n_gcpcs <- min(ncol(Ra), ncol(Rb))
+    n_gcpcs <- min(nrow(Ra), ncol(Ra), nrow(Rb), ncol(Rb))
 
     # SVD of the combined data
     RaRb <- rbind(Ra, Rb)
@@ -68,7 +68,8 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
     # unpacking data
     Ra <- inspected$Ra
     Rb <- inspected$Rb
-    J <- inspected$J
+    Jorig <- inspected$J
+    J <- Jorig
     n_gcpcs <- inspected$n_gcpcs
 
     # covariance matrices
@@ -235,7 +236,7 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
     return(list(loadings = loadings_, Ra_scores = Ra_scores_, Ra_values = Ra_values_,
                 Rb_scores = Rb_scores_, Rb_values = Rb_values_, objective_function = objective_function_,
                 objective_values = objective_values_, null_gcpca_values = null_gcpca_values, Ra = Ra,
-                Rb = Rb, J = J, normalize_flag = normalize_flag))
+                Rb = Rb, J = Jorig, normalize_flag = normalize_flag))
   }
 
   # Null distribution for shuffling, not completely tested yet
