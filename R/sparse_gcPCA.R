@@ -20,6 +20,15 @@ sparse_gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, normalize_flag = T
   Ra <- gc_model$Ra
   Rb <- gc_model$Rb
   Jorig <- gc_model$J
+
+  # Legacy safeguard: some gcPCA versions returned a shrunken J (orthogonal complement
+  # after the first loading) instead of the original SVD basis.
+  target_gcpcs <- ncol(gc_model$loadings)
+  if (is.null(Jorig) || ncol(Jorig) < target_gcpcs) {
+    svd_result <- svd(rbind(Ra, Rb))
+    Jorig <- svd_result$v[, 1:target_gcpcs, drop = FALSE]
+    warning("Recovered original J basis from combined SVD because gc_model$J was reduced.")
+  }
   p <- ncol(Ra)
   
   # fitting function
@@ -272,46 +281,46 @@ predict.sparse_gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
 
   # If no new data, just return what was fitted
   if (is.null(Ra) && is.null(Rb)) {
-    Ra_transform <- lapply(seq_along(object$Ra_scores), function(i) {
+    Ra_scores <- lapply(seq_along(object$Ra_scores), function(i) {
         scores <- object$Ra_scores[[i]]  # n x k_i
         vals   <- object$Ra_values[[i]]  # length k_i
         sweep(scores, 2, vals, "*")      # n x k_i, raw transform
     })
     
-    Rb_transform <- lapply(seq_along(object$Rb_scores), function(i) {
+    Rb_scores <- lapply(seq_along(object$Rb_scores), function(i) {
         scores <- object$Rb_scores[[i]]  # n x k_i
         vals   <- object$Rb_values[[i]]  # length k_i
         sweep(scores, 2, vals, "*")      # n x k_i, raw transform
       })
 
     return(list(
-      Ra_transform = Ra_transform,
-      Rb_transform = Rb_transform
+      Ra_scores = Ra_scores,
+      Rb_scores = Rb_scores
     ))
   }
 
   # Initialize
-  Ra_transform <- NULL
-  Rb_transform <- NULL
+  Ra_scores <- NULL
+  Rb_scores <- NULL
 
   # ancillary function to project data onto a list of sparse loading matrices
   project_sparse <- function(X, loadings_list) {
     X <- as.matrix(X)
 
-    transform_list <- vector("list", length(loadings_list))
+    scores_list <- vector("list", length(loadings_list))
     # values_list <- vector("list", length(loadings_list))
 
     for (i in seq_along(loadings_list)) {
       L <- loadings_list[[i]]              # p x k_i
-      temp_transform <- X %*% L                      # n x k_i
+      temp_scores <- X %*% L                      # n x k_i
 
-      transform_list[[i]] <- temp_transform
+      scores_list[[i]] <- temp_scores
       # Norm-1 scores (same as in sparse_gcPCA fitting)
       # scores_list[[i]] <- sweep(temp, 2, norms, "/")
       # values_list[[i]] <- norms
     }
 
-    list(transform = transform_list)
+    list(scores = scores_list)
   }
 
   sparse_loadings <- object$sparse_loadings
@@ -334,7 +343,7 @@ predict.sparse_gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
     # }
 
     proj_Ra <- project_sparse(Ra_proc, sparse_loadings)
-    Ra_transform <- proj_Ra$transform
+    Ra_scores <- proj_Ra$scores
   }
 
   # Process Rb if provided
@@ -346,11 +355,11 @@ predict.sparse_gcPCA <- function(object, Ra = NULL, Rb = NULL, ...) {
     # }
 
     proj_Rb <- project_sparse(Rb_proc, sparse_loadings)
-    Rb_transform <- proj_Rb$transform
+    Rb_scores <- proj_Rb$scores
   }
 
   return(list(
-    Ra_transform = Ra_transform,
-    Rb_transform = Rb_transform
+    Ra_scores = Ra_scores,
+    Rb_scores = Rb_scores
   ))
 }

@@ -222,10 +222,17 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
 
     # preparing results to send back
     loadings_ <- x
-    Ra_scores_ <- Ra %*% x / norm(Ra %*% x, type = "2")
-    Ra_values_ <- norm(Ra %*% x, type = "2")
-    Rb_scores_ <- Rb %*% x / norm(Rb %*% x, type = "2")
-    Rb_values_ <- norm(Rb %*% x, type = "2")
+    temp_ra <- Ra %*% x
+    ra_norm <- apply(temp_ra, 2, function(col) norm(col, type = "2"))
+    ra_norm[ra_norm == 0] <- 1
+    Ra_scores_ <- sweep(temp_ra, 2, ra_norm, "/")
+    Ra_values_ <- apply(temp_ra, 2, function(col) norm(col, type = "2"))
+
+    temp_rb <- Rb %*% x
+    rb_norm <- apply(temp_rb, 2, function(col) norm(col, type = "2"))
+    rb_norm[rb_norm == 0] <- 1
+    Rb_scores_ <- sweep(temp_rb, 2, rb_norm, "/")
+    Rb_values_ <- apply(temp_rb, 2, function(col) norm(col, type = "2"))
     objective_function_ <- obj_info
     objective_values_ <- s_total
 
