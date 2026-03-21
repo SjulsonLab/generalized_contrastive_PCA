@@ -1,10 +1,13 @@
 # gcpca
 
-R package implementing dense and sparse generalized contrastive PCA (`gcPCA`).
+R package implementing regular and sparse generalized contrastive PCA (`gcPCA`).
 
 ## Installation
 
 ```r
+# from remote repo
+remotes::install_github("SjulsonLab/generalized_contrastive_PCA", subdir = "R_package")
+
 # from local source
 devtools::install(".")
 ```
