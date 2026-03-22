@@ -1,0 +1,23 @@
+Package: gcpca
+Type: Package
+Title: Generalized Contrastive Principal Component Analysis
+Version: 0.0.1
+Authors@R: 
+    person("Eliezyer", "de Oliveira", email="eliezyer.deoliveira@gmail.com", role = c("aut", "cre"))
+Description: Implements dense and sparse generalized contrastive principal component analysis
+    (gcPCA) with S3 fit objects and methods for prediction, summaries, and
+    plotting. The gcPCA is a hyperparameter-free method for comparing high-dimensional
+    datasets collected under different experimental conditions to reveal
+    low-dimensional patterns enriched in one condition compared to the other.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+URL: https://github.com/SjulsonLab/generalized_contrastive_PCA
+BugReports: https://github.com/SjulsonLab/generalized_contrastive_PCA/issues
+Imports: 
+    graphics,
+    stats
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
