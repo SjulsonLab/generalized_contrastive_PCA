@@ -12,12 +12,12 @@ pc_names <- function(k) {
 
 #' Get gcPCA scores
 #'
-#' Convenience wrapper around [predict()] for `"gcPCA"` and `"sparse_gcPCA"`
+#' Convenience wrapper around `predict()` for `"gcPCA"` and `"sparse_gcPCA"`
 #' objects.
 #'
 #' @param object A fitted model object.
 #' @param newdata Optional matrix (treated as `Ra`) or list with `Ra`/`Rb`.
-#' @param ... Extra arguments passed to [predict()].
+#' @param ... Extra arguments passed to `predict()`.
 #'
 #' @return A list of projected scores.
 #' @export
@@ -33,11 +33,11 @@ scores <- function(object, newdata = NULL, ...) {
 
 #' Get gcPCA loadings
 #'
-#' Convenience wrapper around [coef()] for `"gcPCA"` and `"sparse_gcPCA"`
+#' Convenience wrapper around `coef()` for `"gcPCA"` and `"sparse_gcPCA"`
 #' objects.
 #'
 #' @param object A fitted model object.
-#' @param ... Extra arguments passed to [coef()].
+#' @param ... Extra arguments passed to `coef()`.
 #'
 #' @return A loading matrix or a named list of loading matrices.
 #' @export

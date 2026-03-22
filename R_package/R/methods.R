@@ -46,8 +46,8 @@ print.gcPCA <- function(x, ...) {
 #' @param object A fitted `"gcPCA"` or `"sparse_gcPCA"` object.
 #' @param ... Unused.
 #'
-#' @return A structured list of class `"summary.gcPCA"` with eigenvalues,
-#' standard deviations, explained-variance summaries, and tuning settings.
+#' @return A `"summary.gcPCA"` list with eigenvalues, standard deviations,
+#' explained variance summaries, and tuning settings.
 #' @method summary gcPCA
 #' @export
 summary.gcPCA <- function(object, ...) {
@@ -169,7 +169,7 @@ coef.sparse_gcPCA <- function(object, ...) {
 #' Return fitted training scores
 #'
 #' @param object A fitted `"gcPCA"` or `"sparse_gcPCA"` object.
-#' @param ... Passed to [predict()].
+#' @param ... Passed to `predict()`.
 #'
 #' @return A list with `Ra_scores` and `Rb_scores`.
 #' @method fitted gcPCA
@@ -186,7 +186,7 @@ fitted.gcPCA <- function(object, ...) {
 #'
 #' @param x A fitted `"gcPCA"` or `"sparse_gcPCA"` object.
 #' @param which Integer vector of length 2 indicating components to plot.
-#' @param ... Extra graphical parameters passed to [plot()].
+#' @param ... Extra graphical parameters passed to `plot()`.
 #'
 #' @return `x`, invisibly.
 #' @method plot gcPCA

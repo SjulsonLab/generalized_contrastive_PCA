@@ -12,8 +12,8 @@
 \item{...}{Unused.}
 }
 \value{
-A structured list of class \code{"summary.gcPCA"} with eigenvalues,
-standard deviations, explained-variance summaries, and tuning settings.
+A \code{"summary.gcPCA"} list with eigenvalues, standard deviations,
+explained variance summaries, and tuning settings.
 }
 \description{
 Summarize a gcPCA model

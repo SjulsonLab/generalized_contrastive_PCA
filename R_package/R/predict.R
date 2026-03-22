@@ -5,9 +5,8 @@
 #' @param Rb Optional matrix for condition B.
 #' @param ... Unused.
 #'
-#' @return For `gcPCA`, a list with `Ra_scores` and `Rb_scores` matrices. For
-#' `sparse_gcPCA`, a list with `Ra_scores` and `Rb_scores` as lists of matrices
-#' (one per penalty value).
+#' @return For dense models, a list of score matrices. For sparse models, a list
+#' of score-matrix lists, one per penalty value.
 #'
 #' @method predict gcPCA
 #' @importFrom stats predict

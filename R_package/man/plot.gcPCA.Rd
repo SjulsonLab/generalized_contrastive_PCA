@@ -11,7 +11,7 @@
 
 \item{which}{Integer vector of length 2 indicating components to plot.}
 
-\item{...}{Extra graphical parameters passed to \code{\link[=plot]{plot()}}.}
+\item{...}{Extra graphical parameters passed to \code{plot()}.}
 }
 \value{
 \code{x}, invisibly.

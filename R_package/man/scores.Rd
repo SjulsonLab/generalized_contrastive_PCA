@@ -11,12 +11,12 @@ scores(object, newdata = NULL, ...)
 
 \item{newdata}{Optional matrix (treated as \code{Ra}) or list with \code{Ra}/\code{Rb}.}
 
-\item{...}{Extra arguments passed to \code{\link[=predict]{predict()}}.}
+\item{...}{Extra arguments passed to \code{predict()}.}
 }
 \value{
 A list of projected scores.
 }
 \description{
-Convenience wrapper around \code{\link[=predict]{predict()}} for \code{"gcPCA"} and \code{"sparse_gcPCA"}
+Convenience wrapper around \code{predict()} for \code{"gcPCA"} and \code{"sparse_gcPCA"}
 objects.
 }

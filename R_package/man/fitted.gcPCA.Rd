@@ -9,7 +9,7 @@
 \arguments{
 \item{object}{A fitted \code{"gcPCA"} or \code{"sparse_gcPCA"} object.}
 
-\item{...}{Passed to \code{\link[=predict]{predict()}}.}
+\item{...}{Passed to \code{predict()}.}
 }
 \value{
 A list with \code{Ra_scores} and \code{Rb_scores}.

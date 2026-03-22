@@ -9,12 +9,12 @@ loadings(object, ...)
 \arguments{
 \item{object}{A fitted model object.}
 
-\item{...}{Extra arguments passed to \code{\link[=coef]{coef()}}.}
+\item{...}{Extra arguments passed to \code{coef()}.}
 }
 \value{
 A loading matrix or a named list of loading matrices.
 }
 \description{
-Convenience wrapper around \code{\link[=coef]{coef()}} for \code{"gcPCA"} and \code{"sparse_gcPCA"}
+Convenience wrapper around \code{coef()} for \code{"gcPCA"} and \code{"sparse_gcPCA"}
 objects.
 }

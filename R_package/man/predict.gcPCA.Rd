@@ -19,9 +19,8 @@
 \item{...}{Unused.}
 }
 \value{
-For \code{gcPCA}, a list with \code{Ra_scores} and \code{Rb_scores} matrices. For
-\code{sparse_gcPCA}, a list with \code{Ra_scores} and \code{Rb_scores} as lists of matrices
-(one per penalty value).
+For dense models, a list of score matrices. For sparse models, a list
+of score-matrix lists, one per penalty value.
 }
 \description{
 Project data with a fitted gcPCA model
