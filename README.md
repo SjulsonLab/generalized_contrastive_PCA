@@ -1,14 +1,14 @@
 # Generalized Contrastive PCA
 
-Generalized contrastive PCA is a new dimensionality reduction method. It is a hyperparameter-free method for comparing high-dimensional datasets collected under different experimental conditions to reveal low-dimensional patterns enriched in one condition compared to the other. Unlike traditional dimensionality reduction methods like PCA, which work on a single condition, gcPCA allows for a direct comparison between conditions.
+Generalized contrastive PCA (gcPCA) is a dimensionality reduction method for contrasting datasets. It identifies low-dimensional patterns that are enriched in one experimental condition relative to another. Unlike PCA, which operates on a single dataset, gcPCA enables direct comparisons across conditions.
 
-This open-source toolbox includes implementations of gcPCA in both Python and MATLAB, with variants designed for different data types. It provides a straightforward, fast, and reliable way to compare conditions.
+This repository provides open-source implementations of gcPCA in Python, MATLAB, and R, along with variants for different data types. The toolbox offers a mathematically rigorous and practical approach for comparing high-dimensional datasets.
 
 ##### Key Features
 - **Hyperparameter-free**: No manual tuning required.
 - **Symmetric comparison**: Both conditions are treated equally.
 - **Sparse solutions**: Reduce the complexity of the results for better interpretation.
-- **Multiple implementations**: Available in both Python and MATLAB (R implementation on the way!).
+- **Multiple implementations**: Available in both Python, MATLAB and R.
 
 You can find more details in our paper at [PLOS Computational Biology](https://doi.org/10.1371/journal.pcbi.1012747)
 
@@ -25,11 +25,14 @@ If you find this project helpful, consider supporting us by clicking the “⭐ 
 --------------------------------------------------------------------------------
 ### Installation
 
+##### Python
+
 1. Install [conda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/download.html) in your machine
+
 2. Create an environment to use the package
 
 ```
-conda create --name gcPCA python=3.9
+conda create --name gcPCA python=3.12 (or any Python >= 3.9)
 ```
 
 Activate the conda environment
@@ -45,9 +48,27 @@ conda activate gcPCA
 pip install generalized_contrastive_PCA
 ```
 
-### Alternative Installation
+Alternatively, you can just install the environment from this repo environment.yml file
 
-If you have an environment you want to use with gcPCA, you can just refer to the class gcPCA in the file `contrastive_methods.py`, at this version the only dependencies are: numpy and scipy, and numba.
+```
+conda env create -f environment.yml
+```
+
+##### R
+
+Install the R package from GitHub:
+
+```r
+install.packages("remotes")
+remotes::install_github("SjulsonLab/generalized_contrastive_PCA", subdir = "R_package")
+```
+
+Or install it locally from a clone of this repository:
+
+```r
+install.packages("devtools")
+devtools::install("R_package")
+```
 
 --------------------------------------------------------------------------------
 ### Usage
@@ -98,6 +119,28 @@ being the number of gcPCs, ordered by the values in gcPCA_values_
 
 `gcPCA_model.Rb_scores_`: Rb dataset scores on the gcPCs, A matrix mb x k, with k
 being the number of gcPCs, ordered by the values in gcPCA_values_
+
+##### R
+
+Load the package and fit a model:
+
+```r
+library(gcpca)
+
+set.seed(1)
+Ra <- matrix(rnorm(40 * 5), ncol = 5)
+Rb <- matrix(rnorm(35 * 5), ncol = 5)
+
+fit <- gcPCA(Ra, Rb, method = "v4", Ncalc = 3)
+pred <- predict(fit, Ra = Ra, Rb = Rb)
+
+pred$Ra_scores
+pred$Rb_scores
+```
+
+`fit` is an S3 `"gcPCA"` object with the model loadings, scores, objective values,
+and fit metadata. You can use `coef(fit)` to extract loadings and `summary(fit)`
+for a concise model summary.
 
 ##### MATLAB
 

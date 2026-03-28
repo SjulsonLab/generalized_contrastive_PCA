@@ -9,6 +9,8 @@ Description: Implements dense and sparse generalized contrastive principal compo
     plotting. The gcPCA is a hyperparameter-free method for comparing high-dimensional
     datasets collected under different experimental conditions to reveal
     low-dimensional patterns enriched in one condition compared to the other.
+    Method details are described in de Oliveira, Garg, Hjerling-Leffler,
+    Batista-Brito, and Sjulson (2025) <doi:10.1371/journal.pcbi.1012747>.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

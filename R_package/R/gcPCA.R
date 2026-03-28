@@ -84,12 +84,8 @@ gcPCA <- function(Ra, Rb, method = 'v4', Ncalc = NULL, Nshuffle = 0, normalize_f
     }
 
     # set the number of gcPCs to return for different methods
-    if (method %in% c('v1', 'v2', 'v3', 'v4') && !is.infinite(Ncalc)) {
-      warning('Ncalc is only relevant if using orthogonal gcPCA. The full set of gcPCs will be returned.')
-      print(paste(n_gcpcs, 'gcPCs will be returned.'))
-    } else if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
+    if (method %in% c('v2.1', 'v3.1', 'v4.1')) {
       n_gcpcs <- min(Ncalc, n_gcpcs)
-      print(paste(n_gcpcs, 'gcPCs will be returned.'))
     }
 
     J <- svd_result$v
