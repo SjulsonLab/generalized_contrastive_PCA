@@ -1,20 +1,20 @@
-function [B, S, X] = gcPCA(Za, Zb, gcPCAversion, varargin)
+function [B, S, X] = gcPCA(Ra, Rb, gcPCAversion, varargin)
 
-% function [B, S, X] = gcPCA(Za, Zb, gcPCAversion, varargin)
+% function [B, S, X] = gcPCA(Ra, Rb, gcPCAversion, varargin)
 %
 % This function performs generalized contrastive PCA (gcPCA), which takes
-% the input matrices Za and Zb and finds the dimensions that differ most
+% the input matrices Ra and Rb and finds the dimensions that differ most
 % between them. gcPCA is analogous to PCA/SVD, which finds dimensions that
 % maximize variance in the data matrix Z, decomposing it into (U * S * V'),
 % where U contains scores, V contains loadings, and S is a diagonal matrix
 % showing how much variance each PC accounts for. Instead, gcPCA decomposes
-% Za and Zb into (Ba * Sa * X') and (Bb * Sb * X'), respectively. Unlike in
+% Ra and Rb into (Ba * Sa * X') and (Bb * Sb * X'), respectively. Unlike in
 % PCA, Ba, Bb, and X are not generally orthogonal, but we can constrain X
 % to be orthogonal (versions 2.1/3.1/4.1).
 % 
 % INPUTS
-% Za             -- (p1 x N) matrix of data (N features, p1 datapoints)
-% Zb             -- (p2 x N) matrix of data (N features, p2 datapoints)
+% Ra             -- (p1 x N) matrix of data (N features, p1 datapoints)
+% Rb             -- (p2 x N) matrix of data (N features, p2 datapoints)
 % gcPCAversion   -- version of gcPCA to use
 % Nshuffle       -- (optional) number of times to shuffle for null 
 %                   distribution of S
@@ -25,9 +25,9 @@ function [B, S, X] = gcPCA(Za, Zb, gcPCAversion, varargin)
 %                   if turning this off.
 % 
 % OUTPUTS
-% B (struct)     -- gcPCA scores (different for Za and Zb)
+% B (struct)     -- gcPCA scores (different for Ra and Rb)
 % S (struct)     -- amount of variance accounted for by each gcPC
-% X              -- gcPCA loadings (shared between Za and Zb)
+% X              -- gcPCA loadings (shared between Ra and Rb)
 % 
 % There are currently six versions of gcPCA, which find
 % dimensions maximizing different objective functions:
@@ -47,8 +47,8 @@ function [B, S, X] = gcPCA(Za, Zb, gcPCAversion, varargin)
 
 %% checking parameters and input arguments
 pars = inputParser;
-pars.addRequired('Za');
-pars.addRequired('Zb');
+pars.addRequired('Ra');
+pars.addRequired('Rb');
 pars.addRequired('gcPCAversion');
 pars.addOptional('Nshuffle', 0, @isnumeric);
 pars.addOptional('normalize', true, @islogical);
@@ -56,7 +56,7 @@ pars.addOptional('Ncalc', Inf, @isnumeric);
 pars.addOptional('alpha', 1, @isnumeric);
 pars.addOptional('maxcond', 10^13, @isnumeric); % you shouldn't need to change this, but it's condition number to regularize the denominator matrix if it's ill-conditioned
 pars.addOptional('rPCAkeep',1,@isnumeric); %this parameter is to control the amount of variance you want the original PCs to explain, 1 for full data
-pars.parse('Za', 'Zb', 'gcPCAversion', varargin{:});
+pars.parse('Ra', 'Rb', 'gcPCAversion', varargin{:});
 maxcond = pars.Results.maxcond;
 Ncalc = pars.Results.Ncalc;
 alpha = pars.Results.alpha;
@@ -65,46 +65,46 @@ normalize_flag = pars.Results.normalize;
 rPCAkeep = pars.Results.rPCAkeep; %this is important if you want to exclude very low variance and unstable PCs from your data
 
 %% Step 1: normalize inputs if necessary
-N = size(Zb, 2); % number of dimensions
-if size(Za, 2) ~= N
-    error('Za and Zb have different numbers of dimensions');
+N = size(Rb, 2); % number of dimensions
+if size(Ra, 2) ~= N
+    error('Ra and Rb have different numbers of dimensions');
 end
 
 if normalize_flag
-    Zb_temp = normalize(zscore(Zb), 'norm');
-    Za_temp = normalize(zscore(Za), 'norm');
+    Rb_temp = normalize(zscore(Rb), 'norm');
+    Ra_temp = normalize(zscore(Ra), 'norm');
     
-    if sum((Zb_temp(:) - Zb(:)) .^2) > (0.01 .* Zb_temp.^2)
-        warning('Zb was not normalized properly - normalizing now');
-        Zb = Zb_temp;
+    if sum((Rb_temp(:) - Rb(:)) .^2) > (0.01 .* Rb_temp.^2)
+        warning('Rb was not normalized properly - normalizing now');
+        Rb = Rb_temp;
     end
-    if sum((Za_temp(:) - Za(:)) .^2) > (0.01 .* Za_temp.^2)
-        warning('Za was not normalized properly - normalizing now');
-        Za = Za_temp;
+    if sum((Ra_temp(:) - Ra(:)) .^2) > (0.01 .* Ra_temp.^2)
+        warning('Ra was not normalized properly - normalizing now');
+        Ra = Ra_temp;
     end
-    clear Zb_temp Za_temp
+    clear Rb_temp Ra_temp
 end
 
 %% keep only the PCs that explain r amount of variance
 if rPCAkeep < 1
-   [ua,sa,va] = svd(Za,'econ');
-   [ub,sb,vb] = svd(Zb,'econ');
+   [ua,sa,va] = svd(Ra,'econ');
+   [ub,sb,vb] = svd(Rb,'econ');
    
    na = cumsum(diag(sa)./sum(sa(:)))<rPCAkeep; % n pcs to keep
    nb = cumsum(diag(sb)./sum(sb(:)))<rPCAkeep; % n pcs to keep
-   Za = ua(:,na)*sa(na,na)*va(:,na)';
-   Zb = ub(:,nb)*sb(nb,nb)*vb(:,nb)';
+   Ra = ua(:,na)*sa(na,na)*va(:,na)';
+   Rb = ub(:,nb)*sb(nb,nb)*vb(:,nb)';
 end
 %% Step 2: do SVD and discard dimensions if necessary
-p = min(size(Za, 1), size(Zb, 1)); % we use the p from whichever dataset has fewer datapoints
+p = min(size(Ra, 1), size(Rb, 1)); % we use the p from whichever dataset has fewer datapoints
 N_gcPCs = min(p, N); % number of gcPCs to calculate. If p < N (meaning
 % fewer datapoints than dimensions), we will only calculate p gcPCs
 
 % doing SVD on the combined dataset. The goal here is to discard dimensions
-% that have near-zero variance in *both* Za and Zb
-ZaZb = [Za; Zb];
-tol = max(size(ZaZb)) * eps(norm(ZaZb)); % default cutoff used by rank()
-[~, Sab, J] = svd(ZaZb, 'econ'); % calculate SVD on combined data
+% that have near-zero variance in *both* Ra and Rb
+RaRb = [Ra; Rb];
+tol = max(size(RaRb)) * eps(norm(RaRb)); % default cutoff used by rank()
+[~, Sab, J] = svd(RaRb, 'econ'); % calculate SVD on combined data
 
 Sab = diag(Sab);
 if sum(Sab>tol) < N_gcPCs % data is rank-deficient
@@ -120,7 +120,7 @@ end
 
 Jorig = J(:, 1:N_gcPCs); % using the first N_gcPCs dimensions
 J = Jorig; % J shrinks every round, but Jorig is the first-round's J
-clear ZaZb Sab
+clear RaRb Sab
 
 %% Step 3: doing gcPCA
 
@@ -132,15 +132,15 @@ else
 end
 
 if gcPCAversion == 1
-    ZaZa = Za'*Za / (size(Za,1)-1);
-    ZbZb = Zb'*Zb / (size(Zb,1)-1);
+    RaRa = Ra'*Ra / (size(Ra,1)-1);
+    RbRb = Rb'*Rb / (size(Rb,1)-1);
     
-    JZaZaJ = J'*ZaZa*J; % projecting into lower-D subspace spanned by J
-    JZbZbJ = J'*ZbZb*J;
+    JRaRaJ = J'*RaRa*J; % projecting into lower-D subspace spanned by J
+    JRbRbJ = J'*RbRb*J;
     obj_info = 'Ra - alpha*Rb';
-    clear ZaJ ZbJ
+    clear RaJ RbJ
     
-    sigma = JZaZaJ - alpha*JZbZbJ;
+    sigma = JRaRaJ - alpha*JRbRbJ;
     [y, D] = eig(sigma);
     [~, sortidx] = sort(diag(D), 'descend');
     clear D
@@ -152,27 +152,27 @@ if gcPCAversion == 1
 else
     track_index = zeros(1,Niter);
     count_first_index = 1;
-    ZaZa = Za'*Za / (size(Za,1)-1);
-    ZbZb = Zb'*Zb / (size(Zb,1)-1);
+    RaRa = Ra'*Ra / (size(Ra,1)-1);
+    RbRb = Rb'*Rb / (size(Rb,1)-1);
     for idx = 1:Niter % if we are not calculating orthogonal gcPCs, it only iterates once
         
         % calculate numerator and denominator for objective function
-        JZaZaJ = J'*ZaZa*J; % projecting into lower-D subspace spanned by J
-        JZbZbJ = J'*ZbZb*J;
+        JRaRaJ = J'*RaRa*J; % projecting into lower-D subspace spanned by J
+        JRbRbJ = J'*RbRb*J;
         
         if gcPCAversion == 2 || gcPCAversion == 2.1 % calculating gcPCA using Ra/Rb objective function
-            numerator = JZaZaJ; % calculating the lower-D covariance matrices
-            denominator = JZbZbJ;
+            numerator = JRaRaJ; % calculating the lower-D covariance matrices
+            denominator = JRbRbJ;
             obj_info = 'Ra ./ Rb';
             
         elseif gcPCAversion == 3 || gcPCAversion == 3.1 % calculating gcPCA using (Ra-Rb)/Rb objective function
-            numerator = JZaZaJ - JZbZbJ;
-            denominator = JZbZbJ;
+            numerator = JRaRaJ - JRbRbJ;
+            denominator = JRbRbJ;
             obj_info = '(Ra-Rb) ./ Rb';
             
         elseif gcPCAversion == 4 || gcPCAversion == 4.1 % calculating gcPCA using (Ra-Rb)/(Ra+Rb) objective function
-            numerator = JZaZaJ - JZbZbJ;
-            denominator = JZaZaJ + JZbZbJ;
+            numerator = JRaRaJ - JRbRbJ;
+            denominator = JRaRaJ + JRbRbJ;
             obj_info = '(Ra-Rb) ./ (Ra+Rb)';
         end
         
@@ -221,14 +221,14 @@ else
 end
 %% gathering variables to return
 
-% calculating the B's here so we can clear Za and Zb from RAM prior to
+% calculating the B's here so we can clear Ra and Rb from RAM prior to
 % shuffling
 B.gcPCAversion = gcPCAversion;
-B.b = Zb * X;
-B.a = Za * X;
+B.b = Rb * X;
+B.a = Ra * X;
 
 % extracting the diagonal weight matrices (I shouldn't call these Ra and Rb)
-Ra = vecnorm(B.a)'; %luke's implementation
+Ra = vecnorm(B.a)';
 Rb = vecnorm(B.b)';
 
 % normalizing the columns of the B's
@@ -263,25 +263,25 @@ if Nshuffle > 0
     S.b      = zeros(N_gcPCs, 1);
     S.b_shuf = zeros(N_gcPCs, Nshuffle);
 
-    for a = 1:size(Za,2)
-        Za_shuf(:,a) = Za(randperm(size(Za, 1)), a); % shuffling rows
-        Zb_shuf(:,a) = Zb(randperm(size(Zb, 1)), a); % shuffling rows
+    for a = 1:size(Ra,2)
+        Ra_shuf(:,a) = Ra(randperm(size(Ra, 1)), a); % shuffling rows
+        Rb_shuf(:,a) = Rb(randperm(size(Rb, 1)), a); % shuffling rows
     end
-    clear Za Zb % we will keep only the shuffled version in RAM
+    clear Ra Rb % we will keep only the shuffled version in RAM
     
-%     Zb_shuf = Zb(:, randperm(size(Zb, 2))); % shuffling columns
-%     clear Zb
+%     Rb_shuf = Rb(:, randperm(size(Rb, 2))); % shuffling columns
+%     clear Rb
     for shufidx = 1:Nshuffle
         
-    for a = 1:size(Za_shuf,2)
-        Za_shuf(:,a) = Za_shuf(randperm(size(Za_shuf, 1)), a); % shuffling rows
-        Zb_shuf(:,a) = Zb_shuf(randperm(size(Zb_shuf, 1)), a); % shuffling rows
+    for a = 1:size(Ra_shuf,2)
+        Ra_shuf(:,a) = Ra_shuf(randperm(size(Ra_shuf, 1)), a); % shuffling rows
+        Rb_shuf(:,a) = Rb_shuf(randperm(size(Rb_shuf, 1)), a); % shuffling rows
     end
     
-        [~, S_shuf] = gcPCA(Za_shuf, Zb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
+        [~, S_shuf] = gcPCA(Ra_shuf, Rb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
 
-%         Zb_shuf = Zb_shuf(:, randperm(size(Zb_shuf, 2))); % shuffling columns
-%         [~, S_shuf] = gcPCA(Za, Zb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
+%         Rb_shuf = Rb_shuf(:, randperm(size(Rb_shuf, 2))); % shuffling columns
+%         [~, S_shuf] = gcPCA(Ra, Rb_shuf, gcPCAversion, 'maxcond', maxcond, 'Ncalc', Ncalc);
 
         S.objval_shuf(:, shufidx) = S_shuf.objval;
         S.a_shuf(:, shufidx) = S_shuf.a;
